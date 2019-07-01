@@ -3,19 +3,19 @@
 # INPUTS.3D.EULER
 #*******************************************************************************
 
-max_step 		= 1
+max_step 		= 201
 
 stop_time 		= 500.0
 
-amr.n_cell              = 128 128 16
-amr.max_grid_size       = 16
+amr.n_cell              = 128 128 32
+amr.max_grid_size       = 32
 
-amr.max_level           = 2
+amr.max_level           = 0
 
 ns.do_liquid_ref        = 1
 
 amr.regrid_int		= 2 
-amr.regrid_file         = fixed_grids_rb
+#amr.regrid_file         = fixed_grids_rb
 
 ns.v                    = 1
 amr.v                   = 1
@@ -44,14 +44,14 @@ amr.probin_file 	= probin.3d.rb
 
 geometry.coord_sys   =  0
 
-geometry.prob_lo     =  -4. -4. 0.
-geometry.prob_hi     =  4. 4. 1.
+geometry.prob_lo     =  -2. -2. 0.
+geometry.prob_hi     =  2. 2. 1.
 
 geometry.is_periodic =  1 1 0
 
 ns.gravity = 0.0
 
-ns.lo_bc             = 0 0 5
+ns.lo_bc             = 0 0 4
 ns.hi_bc             = 0 0 4
 
 # 0 = Interior/Periodic  3 = Symmetry
