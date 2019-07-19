@@ -2651,7 +2651,9 @@ NavierStokesBase::post_timestep (int crse_iteration)
     //  
     // Time averaged output 
     //
-    if (parent->plotInt() > 1)
+
+    if (0)
+//    if (num_time_averaged > 0 && numparent->plotInt() > 1)
     {
        // create the TimeAverge_Type variable 
        MultiFab& TA_new = get_new_data(TimeAverage_Type);

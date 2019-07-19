@@ -3,25 +3,25 @@
 # INPUTS.3D.EULER
 #*******************************************************************************
 
-max_step 		= 201
+max_step 		= 2400
 
 stop_time 		= 500.0
 
 amr.n_cell              = 128 128 32
 amr.max_grid_size       = 32
 
-amr.max_level           = 0
+amr.max_level           = 2
 
 ns.do_liquid_ref        = 1
 
 amr.regrid_int		= 2 
-#amr.regrid_file         = fixed_grids_rb
+amr.regrid_file         = fixed_grids_rb_z32
 
 ns.v                    = 1
 amr.v                   = 1
 
-amr.check_int		= 10000 
-#amr.restart		= chk20000
+amr.check_int		= 200 
+#amr.restart		= chk01200
 
 amr.plot_int		= 10
 #amr.plot_per            = 10.
@@ -68,3 +68,4 @@ amr.ref_ratio           = 2 2 2 2
 amr.derive_plot_vars    = energy liquid_water mag_vort
 
 
+proj.Pcode = 4

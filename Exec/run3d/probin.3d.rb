@@ -7,11 +7,11 @@
 
   rb_rho       = 1.
   rb_d0        = 0.
-  rb_dh        = 3.0
+  rb_dh        = 0.0125
   rb_m0        = 0.
-  rb_mh        = -1.0
-  rb_bv        = 4.
-  rb_omega     = 0.
+  rb_mh        = -0.0375
+  rb_bv        = 0.05
+  rb_omega     = 0.0
 
   liquiderr    = 0.
  /

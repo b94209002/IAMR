@@ -286,7 +286,10 @@ NavierStokes::variableSetUp ()
     //
     // ---- time-averaged variables --
     // 
-    int num_time_averaged = 2;
+    int num_time_averaged = 0;
+
+    if (num_time_averaged > 0)
+    {
     desc_lst.addDescriptor(TimeAverage_Type,IndexType::TheCellType(),
                           StateDescriptor::Point,1,num_time_averaged,
                           &cell_cons_interp);
@@ -294,6 +297,7 @@ NavierStokes::variableSetUp ()
     set_scalar_bc(bc,phys_bc);
     desc_lst.setComponent(TimeAverage_Type,0,"time_averaged_comp_1",bc,BndryFunc(FORT_DENFILL));
     desc_lst.setComponent(TimeAverage_Type,1,"time_averaged_comp_2",bc,BndryFunc(FORT_DENFILL));
+    }
     if (do_temp)
     {
 	// stick Divu_Type on the end of the descriptor list
