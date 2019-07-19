@@ -501,6 +501,13 @@ NavierStokes::variableSetUp ()
     derive_lst.addComponent("liquid_water",desc_lst,State_Type,Trac,1);
     derive_lst.addComponent("liquid_water",desc_lst,State_Type,Trac2,1);
 
+    // 
+    // Humidity  
+    // 
+    derive_lst.add("humidity",IndexType::TheCellType(),1,derhumid,the_same_box);
+    derive_lst.addComponent("humidity",desc_lst,State_Type,Trac,1);
+    derive_lst.addComponent("humidity",desc_lst,State_Type,Trac2,1);
+
     //
     // **************  DEFINE ERROR ESTIMATION QUANTITIES  *************
     //

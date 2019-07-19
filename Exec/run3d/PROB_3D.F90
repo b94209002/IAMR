@@ -5173,11 +5173,37 @@ contains
          do k = lo(3), hi(3)
            do j = lo(2), hi(2)
               do i = lo(1), hi(1)
-                 tag(i,j,k) = merge(set,tag(i,j,k),dx(1)*abs(liquid(i,j,k,1)).gt.liquiderr)
+                 tag(i,j,k) = merge(set,tag(i,j,k),abs(liquid(i,j,k,1)).lt.liquiderr)
               end do
            end do
          end do
-       endif
+
+!         do k = lo(3), hi(3)
+!            z = xlo(3) + dx(3)*(float(k-lo(3)) + half)
+!               do j = lo(2), hi(2)
+!                  do i = lo(1), hi(1)
+!                     tag(i,j,k) = merge(set,tag(i,j,k), z .gt. 0.95)
+!                  end do
+!               end do
+!         end do
+
+      endif 
+!      if (level .eq. 1) then
+!
+!         do k = lo(3), hi(3)
+!            z = xlo(3) + dx(3)*(float(k-lo(3)) + half)
+!               do j = lo(2), hi(2)
+!                  do i = lo(1), hi(1)
+!                     tag(i,j,k) = merge(set,tag(i,j,k), z .gt. 0.975)
+!                  end do
+!               end do
+!         end do
+!      endif
+
+
+
+
+
 
       end subroutine FORT_LWCERROR
 !c ::: -----------------------------------------------------------

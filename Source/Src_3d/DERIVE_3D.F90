@@ -29,7 +29,7 @@ module derive_3d_module
             dervortx, dervorty, dervortz, dermgdivu, gradp_dir, &
             dergrdpx, dergrdpy, dergrdpz, deravgpres, dergrdp, &
             derradvel, derazivel, derxvelrot, deryvelrot, dermagvelrot, &
-            dermagvortrot, &
+            dermagvortrot, derliquid, derhumid, &
 #if defined(DO_IAMR_FORCE) 
             derforcing, derforcex, derforcey, derforcez, &    
 #endif
@@ -4933,6 +4933,48 @@ contains
 !$omp end parallel do
 
       end subroutine derliquid
+
+!c=========================================================
+
+      subroutine derhumid (humidity,DIMS(liquid),nv,dat,DIMS(dat),ncomp, &
+                              lo,hi,domlo,domhi,dx,xlo,time,dt, &
+                              bc,level,grid_no) bind(C, name="derhumid")
+      implicit none
+!c
+!c     This routine computes the magnitude of the buoyancy difference to condensation
+!c     of moist Rayleigh-Benard Problem
+!c
+      integer lo(SDIM), hi(SDIM)
+      integer DIMDEC(liquid)
+      integer DIMDEC(dat)
+      integer domlo(SDIM), domhi(SDIM)
+      integer nv, ncomp
+      integer bc(SDIM,2,ncomp)
+      REAL_T  dx(SDIM), xlo(SDIM), time, dt
+      REAL_T  humidity(DIMV(liquid),nv)
+      REAL_T  dat(DIMV(dat),ncomp)
+      integer level, grid_no
+
+      REAL_T  D,M,hz,hn,z,tmp
+      integer    i,j,k
+
+#include <probdata.H>
+
+      hz     = dx(3)
+      hn     = one/rb_bv
+      do k = lo(3), hi(3)
+         z = xlo(3) + hz * ( dble( k-lo(3) ) + half )
+         do j = lo(2), hi(2)
+            do i = lo(1), hi(1)
+               D = dat(i,j,k,1)
+               M = dat(i,j,k,2)
+               tmp = D - rb_bv * z - M
+               humidity(i,j,k,1) = max(0.d0,tmp)
+            end do
+         end do
+      end do
+
+      end subroutine derhumid
 
 !c=========================================================
 

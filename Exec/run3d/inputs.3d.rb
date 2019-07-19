@@ -15,15 +15,15 @@ amr.max_level           = 2
 ns.do_liquid_ref        = 1
 
 amr.regrid_int		= 2 
-amr.regrid_file         = fixed_grids_rb_z32
+#amr.regrid_file         = fixed_grids_rb_z32
 
 ns.v                    = 1
 amr.v                   = 1
 
 amr.check_int		= 200 
-#amr.restart		= chk01200
+amr.restart		= chk00600
 
-amr.plot_int		= 10
+amr.plot_int		= 1
 #amr.plot_per            = 10.
 
 ns.cfl                  = 0.8  # CFL number used to set dt
@@ -65,7 +65,6 @@ amr.ref_ratio           = 2 2 2 2
 #ns.turb_interval        = 10
 #ns.liquid_interval      = 1
 
-amr.derive_plot_vars    = energy liquid_water mag_vort
-
+amr.derive_plot_vars    = energy liquid_water mag_vort humidity
 
 proj.Pcode = 4
