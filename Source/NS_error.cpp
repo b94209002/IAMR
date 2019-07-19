@@ -43,7 +43,9 @@ NavierStokes::error_setup()
 	amrex::Print() << "Refining on TEMP and/or GRAD T" << std::endl;
     }
     if (do_liquid_ref) {
-        err_list.add("humidity", 1, ErrorRec::Special, FORT_LWCERROR);
+        err_list.add("humidity", 0, ErrorRec::Special, FORT_LWCERROR);
+        amrex::Print() << "Refining on liquid_water" << std::endl;
+        err_list.add("liquid_water", 0, ErrorRec::Special, FORT_LWC2ERROR);
         amrex::Print() << "Refining on liquid_water" << std::endl;
     }
 }

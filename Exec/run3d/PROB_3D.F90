@@ -41,7 +41,7 @@ module prob_3D_module
             initshearlayer, initiwpctm, initrb, & 
             FORT_AVERAGE_EDGE_STATES, FORT_MAKEFORCE, FORT_DSDTFILL, &
             FORT_ADVERROR, FORT_ADV2ERROR, FORT_TEMPERROR, FORT_MVERROR, &
-            FORT_LWCERROR, &
+            FORT_LWCERROR, FORT_LWC2ERROR, &
             FORT_DENFILL, FORT_ADVFILL, FORT_TEMPFILL, FORT_XVELFILL, &
             FORT_YVELFILL, FORT_ZVELFILL, FORT_PRESFILL, FORT_DIVUFILL
 
@@ -5146,10 +5146,79 @@ contains
 !c ::: time        => problem evolution time
 !c ::: -----------------------------------------------------------
       subroutine FORT_LWCERROR (tag,DIMS(tag),set,clear, &
-                               liquid,DIMS(liquid),lo,hi,nvar, &
+                               humid,DIMS(liquid),lo,hi,nvar, &
                                domlo,domhi,dx,xlo, &
                                problo,time,level) &
                                bind(C, name="FORT_LWCERROR")
+      implicit none
+
+      integer   DIMDEC(tag)
+      integer   DIMDEC(liquid)
+      integer   lo(SDIM), hi(SDIM)
+      integer   nvar, set, clear, level
+      integer   domlo(SDIM), domhi(SDIM)
+      REAL_T    dx(SDIM), xlo(SDIM), problo(SDIM), time
+      integer   tag(DIMV(tag))
+      REAL_T    humid(DIMV(liquid),nvar)
+
+      REAL_T    x, y, z, dist
+      integer   i, j, k, ztag
+
+#include <probdata.H>
+
+!c      write (*,*) "MVERROR: probtype ",probtype," on level ",level
+
+      if (level .eq. 0) then
+
+         do k = lo(3), hi(3)
+           do j = lo(2), hi(2)
+              do i = lo(1), hi(1)
+                 tag(i,j,k) = merge(set,tag(i,j,k),humid(i,j,k,1) .lt. 0.001)
+              end do
+           end do
+         end do
+
+     if (.false.) then
+         do k = lo(3), hi(3)
+            z = xlo(3) + dx(3)*(float(k-lo(3)) + half)
+               do j = lo(2), hi(2)
+                  do i = lo(1), hi(1)
+                     tag(i,j,k) = merge(set,tag(i,j,k), (z .gt. 0.98) .or. (z .lt. 0.02))
+                  end do
+               end do
+         end do
+      endif
+
+      endif 
+
+      end subroutine FORT_LWCERROR
+
+!c ::: -----------------------------------------------------------
+!c ::: This routine will tag high error cells based on the 
+!c ::: magnitude of liquid water content
+!c ::: 
+!c ::: INPUTS/OUTPUTS:
+!c ::: 
+!c ::: tag         <=  integer tag array
+!c ::: DIMS(tag)   => index extent of tag array
+!c ::: set         => integer value to tag cell for refinement
+!c ::: clear       => integer value to untag cell
+!c ::: vort        => liquid array
+!c ::: DIMS(liquid)=> index extent of liquid array
+!c ::: nvar        => number of components in rho array (should be 1)
+!c ::: lo,hi       => index extent of grid
+!c ::: domlo,hi    => index extent of problem domain
+!c ::: dx          => cell spacing
+!c ::: xlo         => physical location of lower left hand
+!c :::                corner of tag array
+!c ::: problo      => phys loc of lower left corner of prob domain
+!c ::: time        => problem evolution time
+!c ::: -----------------------------------------------------------
+      subroutine FORT_LWC2ERROR (tag,DIMS(tag),set,clear, &
+                               liquid,DIMS(liquid),lo,hi,nvar, &
+                               domlo,domhi,dx,xlo, &
+                               problo,time,level) &
+                               bind(C, name="FORT_LWC2ERROR")
       implicit none
 
       integer   DIMDEC(tag)
@@ -5168,44 +5237,33 @@ contains
 
 !c      write (*,*) "MVERROR: probtype ",probtype," on level ",level
 
-      if (level .eq. 0) then
+      if (level .eq. 1) then
 
          do k = lo(3), hi(3)
            do j = lo(2), hi(2)
               do i = lo(1), hi(1)
-                 tag(i,j,k) = merge(set,tag(i,j,k),abs(liquid(i,j,k,1)).lt.liquiderr)
+                 tag(i,j,k) = merge(set,tag(i,j,k),liquid(i,j,k,1).gt.0.01)
               end do
            end do
          end do
 
-!         do k = lo(3), hi(3)
-!            z = xlo(3) + dx(3)*(float(k-lo(3)) + half)
-!               do j = lo(2), hi(2)
-!                  do i = lo(1), hi(1)
-!                     tag(i,j,k) = merge(set,tag(i,j,k), z .gt. 0.95)
-!                  end do
-!               end do
-!         end do
-
+          
+      if (.false.) then
+         do k = lo(3), hi(3)
+            z = xlo(3) + dx(3)*(float(k-lo(3)) + half)
+               do j = lo(2), hi(2)
+                  do i = lo(1), hi(1)
+                     tag(i,j,k) = merge(set,tag(i,j,k), (z .gt. 0.98) .or. (z .lt. 0.02))
+                  end do
+               end do
+         end do
       endif 
-!      if (level .eq. 1) then
-!
-!         do k = lo(3), hi(3)
-!            z = xlo(3) + dx(3)*(float(k-lo(3)) + half)
-!               do j = lo(2), hi(2)
-!                  do i = lo(1), hi(1)
-!                     tag(i,j,k) = merge(set,tag(i,j,k), z .gt. 0.975)
-!                  end do
-!               end do
-!         end do
-!      endif
 
 
+      endif
 
+      end subroutine FORT_LWC2ERROR
 
-
-
-      end subroutine FORT_LWCERROR
 !c ::: -----------------------------------------------------------
 !c ::: This routine is called during a filpatch operation when
 !c ::: the patch to be filled falls outside the interior
