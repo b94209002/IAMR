@@ -10,9 +10,10 @@ TOP = ../..
 
 DIM        = 3
 COMP	   = gnu
+
 DEBUG	   = FALSE
 USE_MPI    = TRUE
-USE_OMP    = TRUE
+USE_OMP    = FALSE
 
 PRECISION = DOUBLE
 

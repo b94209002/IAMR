@@ -13,5 +13,5 @@
   rb_bv        = 0.05
   rb_omega     = 0.0
 
-  liquiderr    = 0.00001
+  liquiderr    = 0.001
  /

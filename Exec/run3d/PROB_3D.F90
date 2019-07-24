@@ -5173,7 +5173,7 @@ contains
          do k = lo(3), hi(3)
            do j = lo(2), hi(2)
               do i = lo(1), hi(1)
-                 tag(i,j,k) = merge(set,tag(i,j,k),humid(i,j,k,1) .lt. 0.001)
+                 tag(i,j,k) = merge(set,tag(i,j,k),humid(i,j,k,1) .lt. liquiderr)
               end do
            end do
          end do
@@ -5183,7 +5183,8 @@ contains
             z = xlo(3) + dx(3)*(float(k-lo(3)) + half)
                do j = lo(2), hi(2)
                   do i = lo(1), hi(1)
-                     tag(i,j,k) = merge(set,tag(i,j,k), (z .gt. 0.98) .or. (z .lt. 0.02))
+                     tag(i,j,k) = merge(set,tag(i,j,k), z .gt. 0.98)
+!                     tag(i,j,k) = merge(set,tag(i,j,k), (z .gt. 0.98) .or. (z .lt. 0.02))
                   end do
                end do
          end do
@@ -5242,7 +5243,7 @@ contains
          do k = lo(3), hi(3)
            do j = lo(2), hi(2)
               do i = lo(1), hi(1)
-                 tag(i,j,k) = merge(set,tag(i,j,k),liquid(i,j,k,1).gt.0.01)
+                 tag(i,j,k) = merge(set,tag(i,j,k),liquid(i,j,k,1).gt.0.05)
               end do
            end do
          end do
@@ -5253,7 +5254,8 @@ contains
             z = xlo(3) + dx(3)*(float(k-lo(3)) + half)
                do j = lo(2), hi(2)
                   do i = lo(1), hi(1)
-                     tag(i,j,k) = merge(set,tag(i,j,k), (z .gt. 0.98) .or. (z .lt. 0.02))
+                     tag(i,j,k) = merge(set,tag(i,j,k), (z .gt. 0.98) )
+!                     tag(i,j,k) = merge(set,tag(i,j,k), (z .gt. 0.98) .or. (z .lt. 0.02))
                   end do
                end do
          end do

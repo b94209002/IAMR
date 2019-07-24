@@ -21,9 +21,9 @@ ns.v                    = 1
 amr.v                   = 1
 
 amr.check_int		= 200 
-amr.restart		= chk00600
+amr.restart		= chk00800
 
-amr.plot_int		= 1
+amr.plot_int		= 10
 #amr.plot_per            = 10.
 
 ns.cfl                  = 0.8  # CFL number used to set dt
@@ -67,4 +67,5 @@ amr.ref_ratio           = 2 2 2 2
 
 amr.derive_plot_vars    = energy liquid_water mag_vort humidity
 
-proj.Pcode = 4
+proj.v     = 4
+proj.Pcode = 2
