@@ -4969,7 +4969,7 @@ contains
                D = dat(i,j,k,1)
                M = dat(i,j,k,2)
                tmp = D - rb_bv * z - M
-               humidity(i,j,k,1) = max(0.d0,tmp)
+               humidity(i,j,k,1) = max(0.d0,hn*tmp)
             end do
          end do
       end do
