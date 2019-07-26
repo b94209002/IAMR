@@ -101,7 +101,7 @@ contains
       REAL_T  Lx, Ly, Lz, Lmin
       REAL_T  kappa, kappaMax, freqMin, freqMax, freqDiff, pdk
 
-      namelist /fortin/ denerr, vorterr, adverr, temperr, liquiderr, &
+      namelist /fortin/ denerr, vorterr, adverr, temperr, liquiderr, humiderr, &
      			denfact, xblob, yblob, zblob, radblob,  &
                        velfact, probtype, randfact, bubgrad, &
      			rhozero, rhograd, tempzero, c_d, r_d,  &
@@ -3584,9 +3584,9 @@ contains
                vel(i,j,k,1) = zero
                vel(i,j,k,2) = zero
                vel(i,j,k,3) = zero
-               scal(i,j,k,2) = rb_d0 + (rb_dh - rb_d0) * z - pert*exp(-hz*z)
+               scal(i,j,k,2) = rb_d0 + (rb_dh - rb_d0) * z - pert*exp(-z/hz)
                if (do_trac2 .eq. 1) then
-                  scal(i,j,k,3) = rb_m0 + (rb_mh - rb_m0) * z + pert*exp(-hz*z)
+                  scal(i,j,k,3) = rb_m0 + (rb_mh - rb_m0) * z + pert*exp(-z/hz)
                endif
             end do
          end do
@@ -5173,22 +5173,10 @@ contains
          do k = lo(3), hi(3)
            do j = lo(2), hi(2)
               do i = lo(1), hi(1)
-                 tag(i,j,k) = merge(set,tag(i,j,k),humid(i,j,k,1) .lt. liquiderr)
+                 tag(i,j,k) = merge(set,tag(i,j,k),humid(i,j,k,1) .lt. humiderr)
               end do
            end do
          end do
-
-     if (.false.) then
-         do k = lo(3), hi(3)
-            z = xlo(3) + dx(3)*(float(k-lo(3)) + half)
-               do j = lo(2), hi(2)
-                  do i = lo(1), hi(1)
-                     tag(i,j,k) = merge(set,tag(i,j,k), z .gt. 0.98)
-!                     tag(i,j,k) = merge(set,tag(i,j,k), (z .gt. 0.98) .or. (z .lt. 0.02))
-                  end do
-               end do
-         end do
-      endif
 
       endif 
 
@@ -5243,24 +5231,10 @@ contains
          do k = lo(3), hi(3)
            do j = lo(2), hi(2)
               do i = lo(1), hi(1)
-                 tag(i,j,k) = merge(set,tag(i,j,k),liquid(i,j,k,1).gt.0.05)
+                 tag(i,j,k) = merge(set,tag(i,j,k),liquid(i,j,k,1).gt. liquiderr)
               end do
            end do
          end do
-
-          
-      if (.false.) then
-         do k = lo(3), hi(3)
-            z = xlo(3) + dx(3)*(float(k-lo(3)) + half)
-               do j = lo(2), hi(2)
-                  do i = lo(1), hi(1)
-                     tag(i,j,k) = merge(set,tag(i,j,k), (z .gt. 0.98) )
-!                     tag(i,j,k) = merge(set,tag(i,j,k), (z .gt. 0.98) .or. (z .lt. 0.02))
-                  end do
-               end do
-         end do
-      endif 
-
 
       endif
 

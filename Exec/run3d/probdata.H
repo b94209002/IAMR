@@ -1,4 +1,4 @@
-      REAL_T  denerr, vorterr, adverr, temperr, liquiderr, randfact, bubgrad
+      REAL_T  denerr, vorterr, adverr, temperr, liquiderr, humiderr, randfact, bubgrad
       REAL_T  denfact, xblob, yblob, zblob, radblob, velfact 
       REAL_T  rhozero, rhograd, tempzero, r_d, c_d, adv_vel, slot_vel, radvort
       REAL_T  den1,den2,vel1,vel2,delta0,xlev1,zlev1,amag,freq(10),mag(10)
@@ -17,7 +17,7 @@
       common /probdt1/ probtype, adv_dir, axis_dir, ref_type
       common /probdt2/ den1,den2,vel1,vel2,delta0, &
                       xlev1,zlev1,freq,mag, amag, injection_time, override_turb_force
-      common /probdt3/ vorterr, adverr, denerr, temperr, liquiderr, ref_centre, ref_radius
+      common /probdt3/ vorterr, adverr, denerr, temperr, liquiderr, humiderr, ref_centre, ref_radius
       common /probdt4/ denfact, xblob, yblob, zblob, radvort, &
                       radblob, velfact, randfact, bubgrad
       common /probdt5/ rhozero,rhograd,tempzero,r_d,c_d,adv_vel,slot_vel

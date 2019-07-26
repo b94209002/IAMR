@@ -13,5 +13,6 @@
   rb_bv        = 0.1
   rb_omega     = 0.0
 
-  liquiderr    = 0.001
+  liquiderr    = 0.05
+  humiderr     = 0.001
  /
