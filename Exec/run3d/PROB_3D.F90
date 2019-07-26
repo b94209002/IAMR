@@ -3574,7 +3574,7 @@ contains
 !c compute x perturbation
             pertx = normal_random_variable(rb_nfreq,L_x,x,rb_pertamp)
 
-            pert = pertx*perty
+            pert = pertx*perty*hz
 
             do k = lo(3), hi(3)
                z = xlo(3) + hz*(dble(k-lo(3)) + 0.5d0)
@@ -3584,9 +3584,9 @@ contains
                vel(i,j,k,1) = zero
                vel(i,j,k,2) = zero
                vel(i,j,k,3) = zero
-               scal(i,j,k,2) = rb_d0 + (rb_dh - rb_d0) * z - pert*(cos(z*pi*.5d0))
+               scal(i,j,k,2) = rb_d0 + (rb_dh - rb_d0) * z - pert*exp(-hz*z)
                if (do_trac2 .eq. 1) then
-                  scal(i,j,k,3) = rb_m0 + (rb_mh - rb_m0) * z + pert*(cos(z*pi*.5d0))
+                  scal(i,j,k,3) = rb_m0 + (rb_mh - rb_m0) * z + pert*exp(-hz*z)
                endif
             end do
          end do
