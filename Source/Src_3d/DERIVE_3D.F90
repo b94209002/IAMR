@@ -4936,7 +4936,7 @@ contains
 
 !c=========================================================
 
-      subroutine derhumid (humidity,DIMS(liquid),nv,dat,DIMS(dat),ncomp, &
+      subroutine derhumid (humidity,DIMS(humidity),nv,dat,DIMS(dat),ncomp, &
                               lo,hi,domlo,domhi,dx,xlo,time,dt, &
                               bc,level,grid_no) bind(C, name="derhumid")
       implicit none
@@ -4945,13 +4945,13 @@ contains
 !c     of moist Rayleigh-Benard Problem
 !c
       integer lo(SDIM), hi(SDIM)
-      integer DIMDEC(liquid)
+      integer DIMDEC(humidity)
       integer DIMDEC(dat)
       integer domlo(SDIM), domhi(SDIM)
       integer nv, ncomp
       integer bc(SDIM,2,ncomp)
       REAL_T  dx(SDIM), xlo(SDIM), time, dt
-      REAL_T  humidity(DIMV(liquid),nv)
+      REAL_T  humidity(DIMV(humidity),nv)
       REAL_T  dat(DIMV(dat),ncomp)
       integer level, grid_no
 
