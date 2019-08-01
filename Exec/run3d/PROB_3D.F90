@@ -3578,8 +3578,6 @@ contains
 
             do k = lo(3), hi(3)
                z = xlo(3) + hz*(dble(k-lo(3)) + 0.5d0)
-               zp = kt*(one+z)
-               zm = kt*(one-z)
                scal(i,j,k,1) = rb_rho
                vel(i,j,k,1) = zero
                vel(i,j,k,2) = zero
