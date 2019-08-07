@@ -3583,7 +3583,7 @@ contains
                vel(i,j,k,3) = zero
                scal(i,j,k,2) = rb_d0 + (rb_dh - rb_d0) * z - pert*exp(-z/hz)
                if (do_trac2 .eq. 1) then
-                  scal(i,j,k,3) = rb_m0 + (rb_mh - rb_m0) * z + pert*exp(-z/hz)
+                  scal(i,j,k,3) = rb_m0 + (rb_mh - rb_m0) * z !+ pert*exp(-z/hz)
                endif
             end do
          end do
