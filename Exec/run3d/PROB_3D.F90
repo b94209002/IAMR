@@ -5116,6 +5116,17 @@ contains
            end do
          end do
 
+      else if (probtype .eq. 31) then
+
+
+         do k = lo(3), hi(3)
+           do j = lo(2), hi(2)
+              do i = lo(1), hi(1)
+                 tag(i,j,k) = merge(set,tag(i,j,k),dx(1)*abs(vort(i,j,k,1)).gt.vorterr)
+              end do
+           end do
+         end do
+
       else
         print *,'DONT KNOW THIS PROBTYPE IN FORT_MVERROR ',probtype
         stop
@@ -5169,11 +5180,18 @@ contains
       if (level .eq. 0) then
 
          do k = lo(3), hi(3)
-           do j = lo(2), hi(2)
-              do i = lo(1), hi(1)
-                 tag(i,j,k) = merge(set,tag(i,j,k),humid(i,j,k,1) .lt. humiderr)
-              end do
-           end do
+            do j = lo(2), hi(2)
+               do i = lo(1), hi(1)
+                  tag(i,j,k) = merge(set,tag(i,j,k),humid(i,j,k,1) .lt. humiderr)
+               end do
+            end do
+
+            z = xlo(3) + dx(3)*(float(k-lo(3)) + half)
+            do j = lo(2), hi(2)
+               do i = lo(1), hi(1)
+                  tag(i,j,k) = merge(set,tag(i,j,k), (z .gt. 0.98) .or. (z .lt. 0.02))
+               end do
+            end do
          end do
 
       endif 
@@ -5232,6 +5250,15 @@ contains
                  tag(i,j,k) = merge(set,tag(i,j,k),liquid(i,j,k,1).gt. liquiderr)
               end do
            end do
+
+
+            z = xlo(3) + dx(3)*(float(k-lo(3)) + half)
+            do j = lo(2), hi(2)
+               do i = lo(1), hi(1)
+                  tag(i,j,k) = merge(set,tag(i,j,k), (z .gt. 0.99) .or. (z .lt. 0.01))
+               end do
+            end do
+
          end do
 
       endif

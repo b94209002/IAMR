@@ -3,34 +3,37 @@
 # INPUTS.3D.EULER
 #*******************************************************************************
 
-max_step 		= 2400
+max_step 		= 4000
 
-stop_time 		= 500.0
+stop_time 		= 5.0
 
 amr.n_cell              = 128 128 32
 amr.max_grid_size       = 32
 
-amr.max_level           = 2
+amr.max_level           = 0
 
-ns.do_liquid_ref        = 1
+ns.do_liquid_ref        = 0
+ns.do_vorticity_ref     = 0
 
-amr.regrid_int		= 2 
+amr.regrid_int		= -1
 #amr.regrid_file         = fixed_grids_rb_z32
 
 ns.v                    = 1
 amr.v                   = 1
 
-amr.check_int		= 200 
-amr.restart		= chk00800
+amr.check_int		= 100 
+#amr.restart		= chk03000
 
 amr.plot_int		= 10
 #amr.plot_per            = 10.
 
-ns.cfl                  = 0.8  # CFL number used to set dt
+ns.cfl                  = 0.25  # CFL number used to set dt
 
 ns.init_shrink          = 1.0  # factor which multiplies the very first time step
 ns.init_iter            = 0
 ns.do_init_proj         = 0
+
+ns.be_cn_theta          = 0.5
 
 ns.vel_visc_coef        = 0.001
 ns.scal_diff_coefs      = 0.0014 0.0014
@@ -51,7 +54,7 @@ geometry.is_periodic =  1 1 0
 
 ns.gravity = 0.0
 
-ns.lo_bc             = 0 0 4
+ns.lo_bc             = 0 0 5
 ns.hi_bc             = 0 0 4
 
 # 0 = Interior/Periodic  3 = Symmetry

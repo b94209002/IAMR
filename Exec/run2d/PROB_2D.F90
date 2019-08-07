@@ -23,7 +23,7 @@ module prob_2D_module
             inithotspot, initrt, inittraceradvect, initfromrest, &
             FORT_DENERROR, FORT_AVERAGE_EDGE_STATES, FORT_MAKEFORCE, &
             FORT_ADVERROR, FORT_ADV2ERROR, FORT_TEMPERROR, FORT_MVERROR, &
-            FORT_LWCERROR, &
+            FORT_LWCERROR, FORT_LWC2ERROR, &
             FORT_DENFILL, FORT_ADVFILL, FORT_TEMPFILL, FORT_XVELFILL, &
             FORT_YVELFILL, FORT_PRESFILL, FORT_DIVUFILL, FORT_DSDTFILL
 
@@ -701,7 +701,7 @@ contains
       hy = dx(2)
 
       L_x = 2.0d0
-      ed = one/sqrt(0.002d0/rb_omega)
+      ed = one/sqrt(0.0002d0/rb_omega)
       dem = one/(cos(two*ed) + cosh(two*ed))
 
       do j = lo(2), hi(2)
@@ -1084,7 +1084,7 @@ contains
             enddo
 !c     else to zero
          else
-            ed = 1.d0/sqrt(0.002d0/rb_omega)
+            ed = 1.d0/sqrt(0.0002d0/rb_omega)
             dem = one/(cos(two*ed) + cosh(two*ed))
             do j = jlo, jhi
                y = xlo(2)+ hy*(float(j-jlo) + half)
@@ -1656,6 +1656,73 @@ contains
       endif
 
       end subroutine FORT_LWCERROR
+!c ::: -----------------------------------------------------------
+!c ::: This routine will tag high error cells based on the 
+!c ::: liquid water content
+!c ::: 
+!c ::: INPUTS/OUTPUTS:
+!c ::: 
+!c ::: tag      <=  integer tag array
+!c ::: DIMS(tag) => index extent of tag array
+!c ::: set       => integer value to tag cell for refinement
+!c ::: clear     => integer value to untag cell
+!c ::: liquid    => array of liquid water content
+!c ::: DIMS(liquid) => index extent of liquid array
+!c ::: nvar      => number of components in liquid array (should be 1)
+!c ::: lo,hi     => index extent of grid
+!c ::: domlo,hi  => index extent of problem domain
+!c ::: dx        => cell spacing
+!c ::: xlo       => physical location of lower left hand
+!c :::              corner of tag array
+!c ::: problo    => phys loc of lower left corner of prob domain
+!c ::: time      => problem evolution time
+!c ::: -----------------------------------------------------------
+      subroutine FORT_LWC2ERROR (tag,DIMS(tag),set,clear, &
+                              liquid,DIMS(liquid),lo,hi,nvar, &
+                              domlo,domhi,dx,xlo, &
+                               problo,time,level) &
+                 bind(C, name="FORT_LWC2ERROR")
+
+      integer   DIMDEC(tag)
+      integer   DIMDEC(liquid)
+      integer   nvar, set, clear, level
+      integer   lo(SDIM), hi(SDIM)
+      integer   domlo(SDIM), domhi(SDIM)
+      REAL_T    dx(SDIM), xlo(SDIM), problo(SDIM), time
+      integer   tag(DIMV(tag))
+      REAL_T    liquid(DIMV(liquid),nvar)
+
+      REAL_T    x, y
+      integer   i, j
+
+#include <probdata.H>
+
+!C      do j = lo(2), hi(2)
+!C          do i = lo(1), hi(1)
+!C              tag(i,j) = merge(set,tag(i,j),abs(liquid(i,j,1)).gt.liquiderr)
+!C          end do
+!C      end do
+
+      if (level .eq. 0 ) then
+      do j = lo(2), hi(2)
+          do i = lo(1), hi(1)
+              tag(i,j) = merge(set,tag(i,j),abs(liquid(i,j,1)).gt. 0.6)
+          end do
+      end do
+      endif
+
+      if (level .eq. 1 ) then
+      do j = lo(2), hi(2)
+          do i = lo(1), hi(1)
+              tag(i,j) = merge(set,tag(i,j),abs(liquid(i,j,1)).gt. .8)
+          end do
+      end do
+      endif
+
+      end subroutine FORT_LWC2ERROR
+
+
+
 !c ::: -----------------------------------------------------------
 !c ::: This routine is called during a filpatch operation when
 !c ::: the patch to be filled falls outside the interior
