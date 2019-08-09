@@ -3583,7 +3583,7 @@ contains
                vel(i,j,k,3) = zero
                scal(i,j,k,2) = rb_d0 + (rb_dh - rb_d0) * z - pert*exp(-z/hz)
                if (do_trac2 .eq. 1) then
-                  scal(i,j,k,3) = rb_m0 + (rb_mh - rb_m0) * z !+ pert*exp(-z/hz)
+                  scal(i,j,k,3) = rb_m0 + (rb_mh - rb_m0) * z + pert*exp(-z/hz)
                endif
             end do
          end do
@@ -4079,6 +4079,7 @@ contains
                         force(i,j,k,nXvel) = scal(i,j,k,nRhoScal)*rb_omega*vel(i,j,k,nYvel)
                         force(i,j,k,nYvel) = -scal(i,j,k,nRhoScal)*rb_omega*vel(i,j,k,nXvel)
                         force(i,j,k,nZvel) = max(scal(i,j,k,nTrac2Scal), scal(i,j,k,nTracScal) - rb_bv*z)
+
                      enddo
                   enddo
                enddo
@@ -4653,6 +4654,9 @@ contains
       REAL_T    x, y, z, ax, ay, az, aerr
       integer   i, j, k
 
+      REAL_T    gradx,grady,gradz,d,dm,maxgrad,crit
+
+
 #include <probdata.H>
 
       if (probtype .eq. 20) then
@@ -4663,6 +4667,47 @@ contains
                end do
             end do
          end do
+      elseif (probtype .eq. 31) then
+
+         d = fourth/dx(1)
+         dm = (rb_mh-rb_m0)/(f_probhi(3) - f_problo(3))
+
+         if (level .eq. 0) then
+
+              crit = -half*half*half*dm
+         else 
+              crit = -half*half*dm
+         endif
+
+
+         do k = lo(3), hi(3)
+            do j = lo(2), hi(2)
+               do i = lo(1), hi(1)
+
+                 gradx = adv(i+1,j,k,1  )-adv(i,j,k,1  )+adv(i+1,j+1,k,1  )-adv(i,j+1,k,1  )+ &
+                         adv(i+1,j,k+1,1)-adv(i,j,k+1,1)+adv(i+1,j+1,k+1,1)-adv(i,j+1,k+1,1)
+                 gradx = d*abs(gradx)
+                  
+                 grady = adv(i,j+1,k,1  )-adv(i,j,k,1  )+adv(i+1,j+1,k,1  )-adv(i+1,j,k,1  )+ &
+                         adv(i,j+1,k+1,1)-adv(i,j,k+1,1)+adv(i+1,j+1,k+1,1)-adv(i+1,j,k+1,1)
+
+                 grady = d*abs(grady)
+                  
+!                 gradz = adv(i,  j,k+1,1)-adv(i,  j,k,1)+adv(i,  j+1,k+1,1)-adv(i,  j+1,k,1)+ &
+!                         adv(i+1,j,k+1,1)-adv(i+1,j,k,1)+adv(i+1,j+1,k+1,1)-adv(i+1,j+1,k,1)
+
+!                 gradz = half*abs(d*gradz - dm)
+
+!                 maxgrad = max(gradx,grady,gradz)
+
+                 maxgrad = sqrt(gradx*gradx + grady*grady)
+
+                 tag(i,j,k) = merge(set,tag(i,j,k),maxgrad .gt. crit)
+               end do
+            end do
+         end do
+
+
       else
          print *,'DONT KNOW THIS PROBTYPE IN FORT_ADVERROR ',probtype
          stop
@@ -5185,12 +5230,12 @@ contains
                end do
             end do
 
-            z = xlo(3) + dx(3)*(float(k-lo(3)) + half)
-            do j = lo(2), hi(2)
-               do i = lo(1), hi(1)
-                  tag(i,j,k) = merge(set,tag(i,j,k), (z .gt. 0.98) .or. (z .lt. 0.02))
-               end do
-            end do
+!            z = xlo(3) + dx(3)*(float(k-lo(3)) + half)
+!            do j = lo(2), hi(2)
+!               do i = lo(1), hi(1)
+!                  tag(i,j,k) = merge(set,tag(i,j,k), (z .gt. 0.98) .or. (z .lt. 0.02))
+!               end do
+!            end do
          end do
 
       endif 
@@ -5251,12 +5296,12 @@ contains
            end do
 
 
-            z = xlo(3) + dx(3)*(float(k-lo(3)) + half)
-            do j = lo(2), hi(2)
-               do i = lo(1), hi(1)
-                  tag(i,j,k) = merge(set,tag(i,j,k), (z .gt. 0.99) .or. (z .lt. 0.01))
-               end do
-            end do
+!            z = xlo(3) + dx(3)*(float(k-lo(3)) + half)
+!            do j = lo(2), hi(2)
+!               do i = lo(1), hi(1)
+!                  tag(i,j,k) = merge(set,tag(i,j,k), (z .gt. 0.99) .or. (z .lt. 0.01))
+!               end do
+!            end do
 
          end do
 
