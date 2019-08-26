@@ -3,16 +3,16 @@
 # INPUTS.3D.EULER
 #*******************************************************************************
 
-max_step 		= 3000
+max_step 		= 6000
 
-stop_time 		= 500.0
+stop_time 		= 2000.0
 
 amr.n_cell              = 128 128 32
 amr.max_grid_size       = 32
 
 amr.max_level           = 2
 ns.do_liquid_ref        = 1
-ns.do_tracer2_ref       = 1
+ns.do_tracer2_ref       = 0
 ns.do_vorticity_ref     = 0
 
 amr.regrid_int		= 2
@@ -21,10 +21,10 @@ amr.regrid_int		= 2
 ns.v                    = 1
 amr.v                   = 1
 
-amr.check_int		= 100 
-amr.restart		= chk02000
+amr.check_int		= 300 
+amr.restart		= chk05300
 
-amr.plot_int		= 5
+amr.plot_int		= 10
 #amr.plot_per            = 10.
 
 ns.cfl                  = 0.5  # CFL number used to set dt
@@ -35,8 +35,8 @@ ns.do_init_proj         = 0
 
 ns.be_cn_theta          = 0.5
 
-ns.vel_visc_coef        = 0.001
-ns.scal_diff_coefs      = 0.0014 0.0014
+ns.vel_visc_coef        = 0.0001
+ns.scal_diff_coefs      = 0.00014 0.00014
 
 ns.do_cons_trac         = 1
 ns.do_trac2             = 1
