@@ -23,7 +23,6 @@ module prob_2D_module
             inithotspot, initrt, inittraceradvect, initfromrest, &
             FORT_DENERROR, FORT_AVERAGE_EDGE_STATES, FORT_MAKEFORCE, &
             FORT_ADVERROR, FORT_ADV2ERROR, FORT_TEMPERROR, FORT_MVERROR, &
-            FORT_LWCERROR, &
             FORT_DENFILL, FORT_ADVFILL, FORT_TEMPFILL, FORT_XVELFILL, &
             FORT_YVELFILL, FORT_PRESFILL, FORT_DIVUFILL, FORT_DSDTFILL
 
@@ -82,8 +81,6 @@ contains
                        ,forceInflow, numInflPlanesStore, strmwse_dir, &
                        forceLo, forceHi, flct_file, turb_scale
 #endif
-
-      namelist /fortin/ rb_rho, rb_d0, rb_dh, rb_m0, rb_mh, rb_bv, rb_omega, liquiderr
 
 !c
 !c      Build "probin" filename -- the name of file containing fortin namelist.
@@ -693,41 +690,31 @@ contains
       REAL_T  hx, hy
       REAL_T  x_vel, y_vel
       REAL_T  dist, pertheight, L_x, rho_1, rho_2
-      REAL_T  ed, dem, yp, ym
 
 #include <probdata.H>
 
       hx = dx(1)
       hy = dx(2)
 
-      L_x = 2.0d0
-      ed = one/sqrt(0.002d0/rb_omega)
-      dem = one/(cos(two*ed) + cosh(two*ed))
+      L_x = 0.5d0
+
+      rho_1 = 1.d0
+      rho_2 = 2.d0
 
       do j = lo(2), hi(2)
-         y = xlo(2)+hy*(dble(j-lo(2)) + half)
+         y = hy*(float(j) + half)
          do i = lo(1), hi(1)
             x = hx*(float(i) + half)
-            yp = ed*(one+y)
-            ym = ed*(one-y)
 
             pertheight = 0.5d0 + 0.005d0* &
                 (cos(2.d0*Pi*x/L_x)+cos(2.d0*Pi*(L_x-x)/L_x))
 
-            scal(i,j,1) = rb_rho
+            scal(i,j,1) = rho_1 +  &
+                ((rho_2-rho_1)/2.d0)*(1+tanh((y-pertheight)/0.005d0))
 
-!C            vel(i,j,1) = zero
-!C give initial condition by the analytical solution
-            vel(i,j,1) = dem*(sinh(ym)*sin(yp)+sinh(yp)*sin(ym))
-
+            vel(i,j,1) = zero
             vel(i,j,2) = zero
-
-!C            scal(i,j,2) = rb_d0 + (rb_dh-rb_d0)*y +  0.005d0*
-!C     &           (cos(2.d0*Pi*x/L_x)) * exp(-y*10.d0)
-
-!C no initial perturbation
-            scal(i,j,2) = rb_d0 + (rb_dh-rb_d0)*y
-            scal(i,j,3) = rb_m0 + (rb_mh-rb_m0)*y
+            scal(i,j,2) = zero
 
          end do
       end do
@@ -971,7 +958,6 @@ contains
       integer isioproc
       integer nXvel, nYvel, nRho, nTrac, nTrac2
       integer nRhoScal, nTracScal, nTrac2Scal
-      REAL_T  dem, ed, ym, yp, uavg
 
       REAL_T  velmin(0:SDIM-1)
       REAL_T  velmax(0:SDIM-1)
@@ -1084,25 +1070,12 @@ contains
             enddo
 !c     else to zero
          else
-            ed = 1.d0/sqrt(0.002d0/rb_omega)
-            dem = one/(cos(two*ed) + cosh(two*ed))
             do j = jlo, jhi
-               y = xlo(2)+ hy*(float(j-jlo) + half)
                do i = ilo, ihi
-                  yp = ed*(one+y)
-                  ym = ed*(one-y)
-                  uavg = - dem*(cos(yp)*cosh(ym)+cosh(yp)*cos(ym))
-!                  force(i,j,nYvel) = max(scal(i,j,nTrac2Scal),scal(i,j,nTracScal) - rb_bv*y)
+                  force(i,j,nXvel) = zero
                   force(i,j,nYvel) = zero
-                  force(i,j,nXvel) = -scal(i,j,nRhoScal)*rb_omega*uavg
                enddo
             enddo
-!            do j = jlo, jhi
-!               do i = ilo, ihi
-!                  force(i,j,nXvel) = zero
-!                  force(i,j,nYvel) = zero
-!               enddo
-!            enddo
          endif
 !c     End of velocity forcing
       endif
@@ -1592,70 +1565,7 @@ contains
       end if
 
       end subroutine FORT_MVERROR 
-!c ::: -----------------------------------------------------------
-!c ::: This routine will tag high error cells based on the 
-!c ::: liquid water content
-!c ::: 
-!c ::: INPUTS/OUTPUTS:
-!c ::: 
-!c ::: tag      <=  integer tag array
-!c ::: DIMS(tag) => index extent of tag array
-!c ::: set       => integer value to tag cell for refinement
-!c ::: clear     => integer value to untag cell
-!c ::: liquid    => array of liquid water content
-!c ::: DIMS(liquid) => index extent of liquid array
-!c ::: nvar      => number of components in liquid array (should be 1)
-!c ::: lo,hi     => index extent of grid
-!c ::: domlo,hi  => index extent of problem domain
-!c ::: dx        => cell spacing
-!c ::: xlo       => physical location of lower left hand
-!c :::              corner of tag array
-!c ::: problo    => phys loc of lower left corner of prob domain
-!c ::: time      => problem evolution time
-!c ::: -----------------------------------------------------------
-      subroutine FORT_LWCERROR (tag,DIMS(tag),set,clear, &
-                              liquid,DIMS(liquid),lo,hi,nvar, &
-                              domlo,domhi,dx,xlo, &
-                               problo,time,level) &
-                 bind(C, name="FORT_LWCERROR")
 
-      integer   DIMDEC(tag)
-      integer   DIMDEC(liquid)
-      integer   nvar, set, clear, level
-      integer   lo(SDIM), hi(SDIM)
-      integer   domlo(SDIM), domhi(SDIM)
-      REAL_T    dx(SDIM), xlo(SDIM), problo(SDIM), time
-      integer   tag(DIMV(tag))
-      REAL_T    liquid(DIMV(liquid),nvar)
-
-      REAL_T    x, y
-      integer   i, j
-
-#include <probdata.H>
-
-!C      do j = lo(2), hi(2)
-!C          do i = lo(1), hi(1)
-!C              tag(i,j) = merge(set,tag(i,j),abs(liquid(i,j,1)).gt.liquiderr)
-!C          end do
-!C      end do
-
-      if (level .eq. 0 ) then
-      do j = lo(2), hi(2)
-          do i = lo(1), hi(1)
-              tag(i,j) = merge(set,tag(i,j),abs(liquid(i,j,1)).gt. 0.6)
-          end do
-      end do
-      endif
-
-      if (level .eq. 1 ) then
-      do j = lo(2), hi(2)
-          do i = lo(1), hi(1)
-              tag(i,j) = merge(set,tag(i,j),abs(liquid(i,j,1)).gt. .8)
-          end do
-      end do
-      endif
-
-      end subroutine FORT_LWCERROR
 !c ::: -----------------------------------------------------------
 !c ::: This routine is called during a filpatch operation when
 !c ::: the patch to be filled falls outside the interior
@@ -1800,7 +1710,7 @@ contains
 
             do j = ARG_L2(adv), domlo(2)-1
                do i = ARG_L1(adv), ARG_H1(adv)
-                  adv(i,j) = rb_d0
+                  adv(i,j) = zero
                end do
             end do
 
@@ -1811,7 +1721,7 @@ contains
       if (bc(2,2).eq.EXT_DIR.and.ARG_H2(adv).gt.domhi(2)) then
          do j = domhi(2)+1, ARG_H2(adv)
             do i = ARG_L1(adv), ARG_H1(adv)
-               adv(i,j) = rb_dh
+               adv(i,j) = zero
             end do
          end do
       end if            
@@ -1853,7 +1763,7 @@ contains
 
          do j = ARG_L2(adv), domlo(2)-1
             do i = ARG_L1(adv), ARG_H1(adv)
-               adv(i,j) = rb_m0
+               adv(i,j) = zero
             end do
          end do
 
@@ -1862,7 +1772,7 @@ contains
       if (bc(2,2).eq.EXT_DIR.and.ARG_H2(adv).gt.domhi(2)) then
          do j = domhi(2)+1, ARG_H2(adv)
             do i = ARG_L1(adv), ARG_H1(adv)
-               adv(i,j) = rb_mh
+               adv(i,j) = zero
             end do
          end do
       end if            
