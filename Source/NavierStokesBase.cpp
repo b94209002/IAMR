@@ -1638,16 +1638,15 @@ NavierStokesBase::initRhoAvg (Real alpha)
 {
     const MultiFab& S_new = get_new_data(State_Type);
 
-    // Set to a ridiculous number just for debugging -- shouldn't need this otherwise
-    rho_avg.setVal(1.e200);
-
+    // 3/03/18 - this setVal appears to be unnecessary, comment it out
+    // note: rho_avg has 1 ghost cell
+    //rho_avg.setVal(0);
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
     for (MFIter rho_avgmfi(rho_avg,true); rho_avgmfi.isValid(); ++rho_avgmfi)
     {
-//  	const Box& bx = rho_avgmfi.growntilebox();
-    	const Box& bx = rho_avgmfi.tilebox();
+    	const Box& bx = rho_avgmfi.growntilebox();
         FArrayBox& rhoavgfab = rho_avg[rho_avgmfi];
 	  
     	rhoavgfab.copy(S_new[rho_avgmfi],bx,Density,bx,0,1);

@@ -1,5 +1,5 @@
 #AMREX_HOME defines the directory in which we will find the BoxLib directory
-AMREX_HOME = ../../../amrex
+AMREX_HOME ?= ../../../amrex
 
 #TOP defines the directory in which we will find Source, Exec, etc.
 TOP = ../..
@@ -14,7 +14,7 @@ DIM         = 2
 COMP        = gnu
 
 DEBUG       = FALSE
-USE_MPI     = FALSE
+USE_MPI     = TRUE
 USE_OMP     = FALSE
 PROFILE     = FALSE
 
