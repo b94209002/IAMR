@@ -90,3 +90,38 @@ MLMG solver is now the only one implemented and used for Diffusion and MacProj
 Cleaned up GNUMakeFiles
 Minor modification to Taylor Green test problem setup
 Fixed a tiling bug in diffusion_rearrangement
+
+9/3/19
+Minor bugfixes only, some to satisfy compiler warnings, some for thread safety,
+some for ghost cell filling when needed
+
+10/1/19
+Updates to ppm for GPU.
+Change in logic for setting dt when the velocity is zero
+
+11/1/19
+Switch many routines to dimension-agnostic (one common code no matter the dimensionality)
+
+12/2/19
+Minor interface cleanups and problem setups
+
+4/1/20
+**This is a major update since many branches were merged into development during
+the month of March
+Introducing complex geometries via EB.
+No longer supporting constant mu or RZ options.
+Update and add regression tests.
+Many updates to be compatible with changes to amrex
+Various bugfixes for host and GPU calculations  
+Various changes to problem setups
+
+5/1/20
+Assortment of minor bug fixes
+Tiling/GPU improvements
+AMReX interface updates
+Minor EB improvements
+
+6/1/20
+Various EB improvements
+Change default dt scaling in sync diffusion solve for PeleLM usage
+Various checks on number of ghost cells and divide by zeros.
