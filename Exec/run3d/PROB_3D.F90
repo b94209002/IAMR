@@ -4059,12 +4059,12 @@ contains
 !c     Rayleigh-Benard 
             if (do_trac2 .eq. 1) then
             ! Moist Rayleigh-Benard
-               do k = klo, khi
-                  z = xlo(3) + hz*(float(k-klo) + half)
-                  do j = jlo, jhi
-                     y = xlo(2) + hy*(float(j-jlo) + half)
-                     do i = ilo, ihi
-                        x = xlo(1) + hx*(float(i-ilo) + half)
+               do k = f_lo(3), f_hi(3)
+                  z = xlo(3) + hz*(float(k-f_lo(3)) + half)
+                  do j = f_lo(2), f_hi(2)
+                     y = xlo(2) + hy*(float(j-f_lo(2)) + half)
+                     do i = f_lo(1), f_hi(1)
+                        x = xlo(1) + hx*(float(i-f_lo(1)) + half)
 
                         force(i,j,k,nXvel) = scal(i,j,k,nRhoScal)*rb_omega*vel(i,j,k,nYvel)
                         force(i,j,k,nYvel) = -scal(i,j,k,nRhoScal)*rb_omega*vel(i,j,k,nXvel)
@@ -4075,12 +4075,12 @@ contains
                enddo
             else
             !  standard Rayleigh-Benard
-               do k = klo, khi
-                  z = xlo(3) + hz*(float(k-klo) + half)
-                  do j = jlo, jhi
-                     y = xlo(2) + hy*(float(j-jlo) + half)
-                     do i = ilo, ihi
-                        x = xlo(1) + hx*(float(i-ilo) + half)
+               do k = f_lo(3), f_hi(3)
+                  z = xlo(3) + hz*(float(k-f_lo(3)) + half)
+                  do j = f_lo(2), f_hi(2)
+                     y = xlo(2) + hy*(float(j-f_lo(2)) + half)
+                     do i = f_lo(1), f_hi(1)
+                        x = xlo(1) + hx*(float(i-f_lo(1)) + half)
                         force(i,j,k,nXvel) = scal(i,j,k,nRhoScal)*rb_omega*vel(i,j,k,nYvel)
                         force(i,j,k,nYvel) =-scal(i,j,k,nRhoScal)*rb_omega*vel(i,j,k,nXvel)
                         force(i,j,k,nZvel) = scal(i,j,k,nTracScal)
