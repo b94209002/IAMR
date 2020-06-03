@@ -179,9 +179,19 @@ NavierStokes::variableSetUp ()
     //
     // **************  DEFINE VELOCITY VARIABLES  ********************
     //
+    // FIXME? - cribbed from CNS
+#ifdef AMREX_USE_EB
+    bool state_data_extrap = false;
+    bool store_in_checkpoint = true;
+    desc_lst.addDescriptor(State_Type,IndexType::TheCellType(),
+    			   StateDescriptor::Point,NUM_GROW,NUM_STATE,
+    			   &eb_cell_cons_interp,state_data_extrap,store_in_checkpoint);
+#else
     desc_lst.addDescriptor(State_Type,IndexType::TheCellType(),
                            StateDescriptor::Point,1,NUM_STATE,
                            &cell_cons_interp);
+#endif
+    
     set_x_vel_bc(bc,phys_bc);
     desc_lst.setComponent(State_Type,Xvel,"x_velocity",bc,BndryFunc(FORT_XVELFILL));
 
@@ -330,7 +340,7 @@ NavierStokes::variableSetUp ()
     //
     // magnitude of vorticity
     //
-    derive_lst.add("mag_vort",IndexType::TheCellType(),1,dermgvort,grow_box_by_one);
+    derive_lst.add("mag_vort",IndexType::TheCellType(),1,DeriveFunc3D(dermgvort),grow_box_by_one);
     derive_lst.addComponent("mag_vort",desc_lst,State_Type,Xvel,BL_SPACEDIM);
 #if (BL_SPACEDIM == 3)
     //
@@ -348,23 +358,23 @@ NavierStokes::variableSetUp ()
     //
     // divergence of velocity field
     //
-    derive_lst.add("diveru",IndexType::TheCellType(),1,dermgdivu,grow_box_by_one);
+    derive_lst.add("diveru",IndexType::TheCellType(),1,DeriveFunc3D(dermgdivu),grow_box_by_one);
     derive_lst.addComponent("diveru",desc_lst,State_Type,Xvel,BL_SPACEDIM);
     //
     // average pressure
     //
-    derive_lst.add("avg_pressure",IndexType::TheCellType(),1,deravgpres,
+    derive_lst.add("avg_pressure",IndexType::TheCellType(),1,DeriveFunc3D(deravgpres),
                    the_same_box);
     derive_lst.addComponent("avg_pressure",desc_lst,Press_Type,Pressure,1);
     //
     // pressure gradient in X direction
     //
-    derive_lst.add("gradpx",IndexType::TheCellType(),1,dergrdpx,the_same_box);
+    derive_lst.add("gradpx",IndexType::TheCellType(),1,DeriveFunc3D(dergrdpx),the_same_box);
     derive_lst.addComponent("gradpx",desc_lst,Press_Type,Pressure,1);
     //
     // pressure gradient in Y direction
     //
-    derive_lst.add("gradpy",IndexType::TheCellType(),1,dergrdpy,the_same_box);
+    derive_lst.add("gradpy",IndexType::TheCellType(),1,DeriveFunc3D(dergrdpy),the_same_box);
     derive_lst.addComponent("gradpy",desc_lst,Press_Type,Pressure,1);
     //
     // magnitude of pressure gradient 
@@ -376,9 +386,8 @@ NavierStokes::variableSetUp ()
     //
     // pressure gradient in Z direction
     //
-    derive_lst.add("gradpz",IndexType::TheCellType(),1,dergrdpz,the_same_box);
+    derive_lst.add("gradpz",IndexType::TheCellType(),1,DeriveFunc3D(dergrdpz),the_same_box);
     derive_lst.addComponent("gradpz",desc_lst,Press_Type,Pressure,1);
-#ifdef MOREGENGETFORCE
     //
     // radial velocity
     //
@@ -409,8 +418,7 @@ NavierStokes::variableSetUp ()
     //
     derive_lst.add("mag_vorticity_rot",IndexType::TheCellType(),1,dermagvortrot,grow_box_by_one);
     derive_lst.addComponent("mag_vorticity_rot",desc_lst,State_Type,Xvel,BL_SPACEDIM);
-#endif
-#if defined(DO_IAMR_FORCE) && (defined(GENGETFORCE)||defined(MOREGENGETFORCE))
+#if defined(DO_IAMR_FORCE)
     //
     // forcing - used to calculate the rate of injection of energy in probtype 14 (HIT)
     //

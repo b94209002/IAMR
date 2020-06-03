@@ -67,6 +67,13 @@ Godunov::Initialize ()
 	hyp_grow = 4;
     }
 
+#ifdef AMREX_USE_EB
+
+//     //nghost from incflo.
+
+    hyp_grow = 4;
+#endif
+
 #if (BL_SPACEDIM==2)
     BL_ASSERT(slope_order==1 || slope_order==2 || slope_order==4);
 #else
@@ -91,7 +98,7 @@ Godunov::Finalize ()
 //
 Godunov::Godunov (int max_size)
 {
-    Initialize();
+  Initialize();
 }
 
 Godunov::~Godunov ()
@@ -131,12 +138,12 @@ Godunov::AdvectScalars(const Box&  box,
                        const Real* dx,
                        Real        dt,
                        D_DECL(const FArrayBox&   Ax, const FArrayBox&   Ay, const FArrayBox&   Az),
-                       D_DECL(const FArrayBox& umac, const FArrayBox& vmac, const FArrayBox& wmac),
-                       D_DECL(      FArrayBox& xflx,       FArrayBox& yflx,       FArrayBox& zflx),
-                       D_DECL(      FArrayBox& xstate,     FArrayBox& ystate,     FArrayBox& zstate),
+                       D_DECL(const FArrayBox& umac, const FArrayBox& vmac, const FArrayBox& wmac),   int vcomp,
+                       D_DECL(      FArrayBox& xflx,       FArrayBox& yflx,       FArrayBox& zflx),   int flxcomp,
+                       D_DECL(      FArrayBox& xstate,     FArrayBox& ystate,     FArrayBox& zstate), int ecomp,
                        const FArrayBox& Sfab,   int first_scalar, int num_scalars,
-                       const FArrayBox& Forces, int fcomp, 
-                       const FArrayBox& Divu,   int ducomp, 
+                       const FArrayBox& Forces, int fcomp,
+                       const FArrayBox& Divu,   int ducomp,
                        FArrayBox& aofs,         int state_ind,
                        const amrex::Vector<AdvectionForm>& advectionType, const amrex::Vector<int>& state_bc,
                        AdvectionScheme adv_scheme, const amrex::FArrayBox& V)
@@ -154,29 +161,35 @@ Godunov::AdvectScalars(const Box&  box,
                           BL_TO_FORTRAN_N_ANYD(Sfab,first_scalar), &num_scalars,
                           BL_TO_FORTRAN_N_ANYD(Forces,fcomp),
                           BL_TO_FORTRAN_N_ANYD(Divu,ducomp),
-                          BL_TO_FORTRAN_ANYD(umac),     BL_TO_FORTRAN_ANYD(xstate),
-                          BL_TO_FORTRAN_ANYD(vmac),     BL_TO_FORTRAN_ANYD(ystate),
+                          BL_TO_FORTRAN_N_ANYD(umac,vcomp),     BL_TO_FORTRAN_N_ANYD(xstate,ecomp),
+                          BL_TO_FORTRAN_N_ANYD(vmac,vcomp),     BL_TO_FORTRAN_N_ANYD(ystate,ecomp),
 #if (AMREX_SPACEDIM == 3)
-                          BL_TO_FORTRAN_ANYD(wmac),     BL_TO_FORTRAN_ANYD(zstate),
+                          BL_TO_FORTRAN_N_ANYD(wmac,vcomp),     BL_TO_FORTRAN_N_ANYD(zstate,ecomp),
                           &corner_couple,
 #endif
-                          &dt, dx, &(state_bc[0]), &state_fidx, 
+                          &dt, dx, &(state_bc[0]), &state_fidx,
                           &use_forces_in_trans, &ppm_type, &(use_conserv_diff[0]));
+
+    //amrex::Print() << ystate;
 
     // ComputeAofs erase the edge state values to write the fluxes
     // So here we make a copy to keep separated fluxes and edge state
-    xflx.copy(xstate);
-    yflx.copy(ystate);
+    xflx.copy<RunOn::Host>(xstate,ecomp,flxcomp,num_scalars);
+    yflx.copy<RunOn::Host>(ystate,ecomp,flxcomp,num_scalars);
 #if (AMREX_SPACEDIM == 3)
-    zflx.copy(zstate);
+    zflx.copy<RunOn::Host>(zstate,ecomp,flxcomp,num_scalars);
 #endif
+    //
+    // C component indices starts from 0, Fortran from 1
+    //
+    //int fort_ind = state_ind+1;
 
     // Convert face states to face fluxes (return in place) and compute flux divergence
     for (int i=0; i<num_scalars; ++i) { // FIXME: Loop required because conserv_diff flag only scalar
         ComputeAofs (box,
                      D_DECL(Ax,  Ay,  Az),  D_DECL(0,0,0),
-                     D_DECL(umac,vmac,wmac),D_DECL(0,0,0),
-                     D_DECL(xflx,yflx,zflx),D_DECL(i,i,i),
+                     D_DECL(umac,vmac,wmac),D_DECL(vcomp,vcomp,vcomp),
+                     D_DECL(xflx,yflx,zflx),D_DECL(flxcomp+i,flxcomp+i,flxcomp+i),
                      V,0,aofs,state_ind+i,use_conserv_diff[i]);
     }
 }
@@ -191,14 +204,14 @@ Godunov::AdvectScalars(const Box&  box,
 void
 Godunov::AdvectState (const Box&  box,
                       const Real* dx,
-                      Real        dt, 
+                      Real        dt,
                       FArrayBox&  areax,
                       FArrayBox&  uedge,
-                      FArrayBox&  xflux,  
+                      FArrayBox&  xflux,
                       FArrayBox&  areay,
                       FArrayBox&  vedge,
-                      FArrayBox&  yflux,  
-#if (BL_SPACEDIM == 3)                               
+                      FArrayBox&  yflux,
+#if (BL_SPACEDIM == 3)
                       FArrayBox&  areaz,
                       FArrayBox&  wedge,
                       FArrayBox&  zflux,
@@ -217,10 +230,10 @@ Godunov::AdvectState (const Box&  box,
                       FArrayBox&  vol)
 {
      //Compute edge states for an advected quantity.
-       
+
     const int state_fidx = state_ind+1;
     const int nc = 1;
-    
+
     extrap_state_to_faces(box.loVect(),box.hiVect(),
                           BL_TO_FORTRAN_N_ANYD(S,fab_ind), &nc,
                           BL_TO_FORTRAN_N_ANYD(tforces,fab_ind),
@@ -233,20 +246,20 @@ Godunov::AdvectState (const Box&  box,
 #endif
                           &dt, dx, bc, &state_fidx,
                           &use_forces_in_trans, &ppm_type, &iconserv);
-    
-    
+
     ComputeAofs (box,
                  D_DECL(areax,areay,areaz),D_DECL(0,0,0),
                  D_DECL(uedge,vedge,wedge),D_DECL(0,0,0),
                  D_DECL(xflux,yflux,zflux),D_DECL(0,0,0),
                  vol,0,aofs,aofs_ind,iconserv);
+
 }
 
 //
 // Compute the advective derivative from fluxes.
 //
 void
-Godunov::ComputeAofs (const Box& grd, 
+Godunov::ComputeAofs (const Box& grd,
                       const FArrayBox& areax, const FArrayBox& uedge, const FArrayBox& xflux,
                       const FArrayBox& areay, const FArrayBox& vedge, const FArrayBox& yflux,
 #if (BL_SPACEDIM == 3 )
@@ -262,7 +275,7 @@ Godunov::ComputeAofs (const Box& grd,
 }
 
 void
-Godunov::ComputeAofs (const Box& grd, 
+Godunov::ComputeAofs (const Box& grd,
                       D_DECL(const FArrayBox& areax,
                              const FArrayBox& areay,
                              const FArrayBox& areaz),
@@ -275,7 +288,7 @@ Godunov::ComputeAofs (const Box& grd,
                              const FArrayBox& yflux,
                              const FArrayBox& zflux),
                       D_DECL(int fxcomp,int fycomp,int fzcomp),
-                      const FArrayBox& vol, int volcomp, 
+                      const FArrayBox& vol, int volcomp,
                       FArrayBox& aofs,int acomp, int iconserv ) const
 {
 
@@ -291,7 +304,7 @@ Godunov::ComputeAofs (const Box& grd,
                       yflux.dataPtr(fycomp), ARLIM(yflux.loVect()), ARLIM(yflux.hiVect()),
                       vedge.dataPtr(vcomp),  ARLIM(vedge.loVect()), ARLIM(vedge.hiVect()),
                       areay.dataPtr(aycomp), ARLIM(areay.loVect()), ARLIM(areay.hiVect()),
-#if (BL_SPACEDIM == 3)                                                    
+#if (BL_SPACEDIM == 3)
                      zflux.dataPtr(fzcomp), ARLIM(zflux.loVect()), ARLIM(zflux.hiVect()),
                      wedge.dataPtr(wcomp),  ARLIM(wedge.loVect()), ARLIM(wedge.hiVect()),
                      areaz.dataPtr(azcomp), ARLIM(areaz.loVect()), ARLIM(areaz.hiVect()),
@@ -345,13 +358,15 @@ Godunov::SyncAdvect (const Box&  box,
     BL_ASSERT(tforces.nComp() >= fab_ind    );
     BL_ASSERT(sync.nComp()    >= sync_ind   );
 
-    BL_ASSERT(ucorr.box()     == xflux.box());
+    BL_ASSERT((ucorr.box()).contains(xflux.box()));
+    // below Assert fails while above passes, so the two are not equivalent
+    //BL_ASSERT(ucorr.box()     >= xflux.box());
     BL_ASSERT(ucorr.nComp()   >= 1          );
 
-    BL_ASSERT(vcorr.box()     == yflux.box());
+    BL_ASSERT((vcorr.box()).contains(yflux.box()));
     BL_ASSERT(vcorr.nComp()   >= 1          );
 #if (BL_SPACEDIM == 3)
-    BL_ASSERT(wcorr.box()     == zflux.box());
+    BL_ASSERT((wcorr.box()).contains(zflux.box()));
     BL_ASSERT(wcorr.nComp()   >= 1          );
 #endif
 
@@ -359,11 +374,10 @@ Godunov::SyncAdvect (const Box&  box,
     //
     // Compute the edge states.
     //
-    
+
     const int state_fidx = state_ind+1;
     const int nc = 1;
 
-    
     extrap_state_to_faces(box.loVect(),box.hiVect(),
                           BL_TO_FORTRAN_N_ANYD(S,fab_ind), &nc,
                           BL_TO_FORTRAN_N_ANYD(tforces,fab_ind),
@@ -376,16 +390,16 @@ Godunov::SyncAdvect (const Box&  box,
 #endif
                           &dt, dx, bc, &state_fidx,
                           &use_forces_in_trans, &ppm_type, &iconserv);
-   
+
     //
     // Compute the advective tendency for the mac sync.
     //
     ComputeSyncAofs(box,
-                    areax, ucorr, xflux,  
-                    areay, vcorr, yflux,  
-#if (BL_SPACEDIM == 3)                             
+                    areax, ucorr, xflux,
+                    areay, vcorr, yflux,
+#if (BL_SPACEDIM == 3)
                     areaz, wcorr, zflux,
-#endif                     
+#endif
                     vol, sync, sync_ind, iconserv);
 }
 
@@ -397,15 +411,15 @@ void
 Godunov::ComputeSyncAofs (const Box& grd,
                           const FArrayBox& areax,
                           FArrayBox& ucorr,
-                          FArrayBox& xflux,  
+                          FArrayBox& xflux,
                           const FArrayBox& areay,
                           FArrayBox& vcorr,
-                          FArrayBox& yflux,  
-#if (BL_SPACEDIM == 3)                             
+                          FArrayBox& yflux,
+#if (BL_SPACEDIM == 3)
                           const FArrayBox& areaz,
                           FArrayBox& wcorr,
                           FArrayBox& zflux,
-#endif                     
+#endif
                           const FArrayBox& vol,
                           FArrayBox& sync,
                           int        sync_ind,
@@ -414,7 +428,7 @@ Godunov::ComputeSyncAofs (const Box& grd,
     const int *lo         = grd.loVect();
     const int *hi         = grd.hiVect();
     sync_adv_forcing(sync.dataPtr(sync_ind), ARLIM(sync.loVect()), ARLIM(sync.hiVect()),
-                           
+
                           xflux.dataPtr(),ARLIM(xflux.loVect()),ARLIM(xflux.hiVect()),
                           ucorr.dataPtr(),ARLIM(ucorr.loVect()),ARLIM(ucorr.hiVect()),
                           areax.dataPtr(),ARLIM(areax.loVect()),ARLIM(areax.hiVect()),
@@ -422,14 +436,14 @@ Godunov::ComputeSyncAofs (const Box& grd,
                           yflux.dataPtr(),ARLIM(yflux.loVect()),ARLIM(yflux.hiVect()),
                           vcorr.dataPtr(),ARLIM(vcorr.loVect()),ARLIM(vcorr.hiVect()),
                           areay.dataPtr(),ARLIM(areay.loVect()),ARLIM(areay.hiVect()),
-#if (BL_SPACEDIM == 3)                                             
+#if (BL_SPACEDIM == 3)
                           zflux.dataPtr(),ARLIM(zflux.loVect()),ARLIM(zflux.hiVect()),
                           wcorr.dataPtr(),ARLIM(wcorr.loVect()),ARLIM(wcorr.hiVect()),
                           areaz.dataPtr(),ARLIM(areaz.loVect()),ARLIM(areaz.hiVect()),
 #endif
                           vol.dataPtr(), ARLIM(vol.loVect()), ARLIM(vol.hiVect()),
                           lo, hi);
-}    
+}
 
 //
 // Correct a conservatively-advected scalar for under-over shoots.
@@ -437,10 +451,10 @@ Godunov::ComputeSyncAofs (const Box& grd,
 void
 Godunov::ConservativeScalMinMax (FArrayBox& Sold,
                                  FArrayBox& Snew,
-                                 int        ind_old_s, 
-                                 int        ind_old_rho, 
-                                 int        ind_new_s, 
-                                 int        ind_new_rho, 
+                                 int        ind_old_s,
+                                 int        ind_old_rho,
+                                 int        ind_new_s,
+                                 int        ind_new_rho,
                                  const int* bc,
                                  const Box& grd)
 {
@@ -462,7 +476,7 @@ Godunov::ConservativeScalMinMax (FArrayBox& Sold,
     FArrayBox smin(flatbox,1);
     FArrayBox smax(flatbox,1);
     const Real *smin_dat = smin.dataPtr();
-    const Real *smax_dat = smax.dataPtr(); 
+    const Real *smax_dat = smax.dataPtr();
 #endif
 
     consscalminmax (Sold_dat, Rho_dat, ARLIM(solo), ARLIM(sohi),
@@ -480,8 +494,8 @@ Godunov::ConservativeScalMinMax (FArrayBox& Sold,
 void
 Godunov::ConvectiveScalMinMax (FArrayBox& Sold,
                                FArrayBox& Snew,
-                               int        ind_old, 
-                               int        ind_new, 
+                               int        ind_old,
+                               int        ind_new,
                                const int* bc,
                                const Box& grd)
 {
@@ -501,10 +515,10 @@ Godunov::ConvectiveScalMinMax (FArrayBox& Sold,
     FArrayBox smin(flatbox,1);
     FArrayBox smax(flatbox,1);
     const Real *smin_dat = smin.dataPtr();
-    const Real *smax_dat = smax.dataPtr(); 
+    const Real *smax_dat = smax.dataPtr();
 #endif
 
-    convscalminmax (Sold_dat, 
+    convscalminmax (Sold_dat,
                          ARLIM(slo), ARLIM(shi),
                          Snew_dat,
                          ARLIM(snlo), ARLIM(snhi),
@@ -515,55 +529,14 @@ Godunov::ConvectiveScalMinMax (FArrayBox& Sold,
                          lo, hi, bc);
 }
 
-//
-// Diagnostic functions follow
-//
 
 //
-// Estimate the maximum allowable timestep at a cell center.
+// Estimate the maximum change in velocity magnitude since previous iteration.
 //
-
-Real
-Godunov::estdt (FArrayBox&  U,
-                FArrayBox&  tforces,
-                FArrayBox&  rho,
-                const Box&  grd,
-                const Real* dx,
-                Real        cfl,
-                Real*       u_max)
-{
-    BL_ASSERT( U.nComp()       >= BL_SPACEDIM );
-    BL_ASSERT( tforces.nComp() >= BL_SPACEDIM );
-    BL_ASSERT( rho.nComp()     == 1           );
-
-    const int *lo     = grd.loVect();
-    const int *hi     = grd.hiVect();
-    const int *vlo    = U.loVect();
-    const int *vhi    = U.hiVect();
-    const int *tlo    = tforces.loVect();
-    const int *thi    = tforces.hiVect();
-    const int *rlo    = rho.loVect();
-    const int *rhi    = rho.hiVect();
-    const Real *Udat  = U.dataPtr();
-    const Real *tfdat = tforces.dataPtr();
-    const Real *rdat  = rho.dataPtr();
-
-    Real dt;
-    fort_estdt(Udat,  ARLIM(vlo), ARLIM(vhi),
-               tfdat, ARLIM(tlo), ARLIM(thi),
-               rdat,  ARLIM(rlo), ARLIM(rhi),
-               lo, hi, &dt, dx, &cfl, u_max);
-    return dt;
-}
-
-//
-// Estimate the maximum change in velocity magnitude since previous iteration. 
-//
-
 Real
 Godunov::maxchng_velmag (FArrayBox&  U_old,
-						 FArrayBox&  U_new,
-                		 const Box&  grd)
+			 FArrayBox&  U_new,
+			 const Box&  grd)
 {
     BL_ASSERT( U_old.nComp()   >= BL_SPACEDIM );
     BL_ASSERT( U_new.nComp()   >= BL_SPACEDIM );
@@ -608,7 +581,7 @@ Godunov::test_umac_rho (FArrayBox&  umac,
            BL_ASSERT(wmac.nComp() == 1););
 
     BL_ASSERT(rho.nComp()  == 1);
-    
+
     const int *lo  = grd.loVect();
     const int *hi  = grd.hiVect();
     const int *ulo = umac.loVect();
@@ -620,7 +593,7 @@ Godunov::test_umac_rho (FArrayBox&  umac,
     const Real *um = umac.dataPtr();
     const Real *vm = vmac.dataPtr();
     const Real *rh = rho.dataPtr();
-    
+
 #if (BL_SPACEDIM == 3)
     const int *wlo = wmac.loVect();
     const int *whi = wmac.hiVect();
@@ -630,9 +603,9 @@ Godunov::test_umac_rho (FArrayBox&  umac,
     Real cfl;
     fort_test_umac_rho(um, ARLIM(ulo), ARLIM(uhi),
                        vm, ARLIM(vlo), ARLIM(vhi),
-#if (BL_SPACEDIM == 3)                            
+#if (BL_SPACEDIM == 3)
                        wm, ARLIM(wlo), ARLIM(whi),
-#endif                                              
+#endif
                        rh, ARLIM(rlo), ARLIM(rhi),
                        lo, hi, &dt, dx, &cfl, u_max);
     return cfl;
@@ -652,7 +625,7 @@ void
 Godunov::Add_tf (const FArrayBox& Sold,
                  FArrayBox& Snew,
                  int        start_ind,
-                 int        num_comp, 
+                 int        num_comp,
                  const FArrayBox& tforces,
                  int        tf_ind,
                  const Box& grd,
@@ -673,8 +646,8 @@ Godunov::Add_tf (const FArrayBox& Sold,
     const Real *SOdat = Sold.dataPtr(start_ind);
     Real *SNdat = Snew.dataPtr(start_ind);
     const Real *TFdat = tforces.dataPtr(tf_ind);
-    
-    update_tf(SOdat, ARLIM(solo), ARLIM(sohi), 
+
+    update_tf(SOdat, ARLIM(solo), ARLIM(sohi),
                    SNdat, ARLIM(snlo), ARLIM(snhi),
                    TFdat, ARLIM(tlo), ARLIM(thi),
                    lo, hi, &dt, &num_comp);
@@ -717,8 +690,8 @@ Godunov::Add_aofs_tf (const FArrayBox& Sold,
     Real *SNdat = Snew.dataPtr(start_ind);
     const Real *AOdat = Aofs.dataPtr(aofs_ind);
     const Real *TFdat = tforces.dataPtr(tf_ind);
-    
-    update_aofs_tf(SOdat, ARLIM(solo), ARLIM(sohi), 
+
+    update_aofs_tf(SOdat, ARLIM(solo), ARLIM(sohi),
                         SNdat, ARLIM(snlo), ARLIM(snhi),
                         AOdat, ARLIM(alo), ARLIM(ahi),
                         TFdat, ARLIM(tlo), ARLIM(thi),
@@ -737,7 +710,7 @@ Godunov::Add_aofs_tf_gp (const FArrayBox& Uold,
                          const FArrayBox& Aofs,
                          const FArrayBox& tforces,
                          const FArrayBox& gp,
-                         const FArrayBox& rho, 
+                         const FArrayBox& rho,
                          const Box& grd,
                          Real       dt) const
 {
@@ -747,7 +720,7 @@ Godunov::Add_aofs_tf_gp (const FArrayBox& Uold,
     BL_ASSERT(tforces.nComp() >= BL_SPACEDIM);
     BL_ASSERT(gp.nComp()      == BL_SPACEDIM);
     BL_ASSERT(rho.nComp()     == 1          );
-    
+
     const int *lo     = grd.loVect();
     const int *hi     = grd.hiVect();
     const int *uolo   = Uold.loVect();
@@ -768,7 +741,7 @@ Godunov::Add_aofs_tf_gp (const FArrayBox& Uold,
     const Real *TFdat = tforces.dataPtr();
     const Real *GPdat = gp.dataPtr();
     const Real *RHdat = rho.dataPtr();
-    
+
     update_aofs_tf_gp(UOdat, ARLIM(uolo), ARLIM(uohi),
                            UNdat, ARLIM(unlo), ARLIM(unhi),
                            AOdat, ARLIM(alo), ARLIM(ahi),
@@ -792,7 +765,7 @@ Godunov::Sum_tf_gp (FArrayBox& tforces, int Tcomp,
     BL_ASSERT(rho.nComp()     > Rcomp);
     BL_ASSERT(tforces.nComp() > Tcomp + BL_SPACEDIM);
     BL_ASSERT(gp.nComp()      > Gcomp + BL_SPACEDIM);
-    
+
     const int *tlo    = tforces.loVect();
     const int *thi    = tforces.hiVect();
     const int *glo    = gp.loVect();
@@ -802,7 +775,7 @@ Godunov::Sum_tf_gp (FArrayBox& tforces, int Tcomp,
     Real *TFdat = tforces.dataPtr(Tcomp);
     const Real *GPdat = gp.dataPtr(Gcomp);
     const Real *RHdat = rho.dataPtr(Rcomp);
-     
+
     fort_sum_tf_gp(TFdat, ARLIM(tlo), ARLIM(thi),
                    GPdat, ARLIM(glo), ARLIM(ghi),
                    RHdat, ARLIM(rlo), ARLIM(rhi),
@@ -817,7 +790,7 @@ Godunov::Sum_tf_gp (FArrayBox& tforces, int Tcomp,
 
 void
 Godunov::Sum_tf_gp_visc (FArrayBox&       tforces,
-                         const FArrayBox& visc, 
+                         const FArrayBox& visc,
                          const FArrayBox& gp,
                          const FArrayBox& Rho) const
 {
@@ -827,7 +800,7 @@ Godunov::Sum_tf_gp_visc (FArrayBox&       tforces,
 void
 Godunov::Sum_tf_gp_visc (FArrayBox&       tforces,
                          int              Tcomp,
-                         const FArrayBox& visc, 
+                         const FArrayBox& visc,
                          int              Vcomp,
                          const FArrayBox& gp,
                          int              Gcomp,
@@ -838,8 +811,8 @@ Godunov::Sum_tf_gp_visc (FArrayBox&       tforces,
     BL_ASSERT(tforces.nComp() >= Tcomp+BL_SPACEDIM);
     BL_ASSERT(visc.nComp()    >= Vcomp+BL_SPACEDIM);
     BL_ASSERT(gp.nComp()      == Gcomp+BL_SPACEDIM);
-    
-    const int *vlo    = visc.loVect();  
+
+    const int *vlo    = visc.loVect();
     const int *vhi    = visc.hiVect();
     const int *tlo    = tforces.loVect();
     const int *thi    = tforces.hiVect();
@@ -851,7 +824,7 @@ Godunov::Sum_tf_gp_visc (FArrayBox&       tforces,
     const Real *VIdat = visc.dataPtr(Vcomp);
     const Real *GPdat = gp.dataPtr(Gcomp);
     const Real *RHdat = rho.dataPtr(Rcomp);
-     
+
     fort_sum_tf_gp_visc(TFdat, ARLIM(tlo), ARLIM(thi),
                         VIdat, ARLIM(vlo), ARLIM(vhi),
                         GPdat, ARLIM(glo), ARLIM(ghi),
@@ -884,7 +857,7 @@ Godunov::Sum_tf_divu (const FArrayBox& S,
     BL_ASSERT(tforces.nComp() >= t_ind+num_comp);
     BL_ASSERT(divu.nComp()    > d_ind          );
     BL_ASSERT(rho.nComp()     > r_ind          );
-    
+
     const int *slo    = S.loVect();
     const int *shi    = S.hiVect();
     const int *tlo    = tforces.loVect();
@@ -897,7 +870,7 @@ Godunov::Sum_tf_divu (const FArrayBox& S,
     Real *TFdat = tforces.dataPtr(t_ind);
     const Real *DUdat = divu.dataPtr(d_ind);
     const Real *RHdat = rho.dataPtr(r_ind);
-     
+
     fort_sum_tf_divu(Sdat,  ARLIM(slo), ARLIM(shi),
                      TFdat, ARLIM(tlo), ARLIM(thi),
                      DUdat, ARLIM(dlo), ARLIM(dhi),
@@ -946,7 +919,7 @@ Godunov::Sum_tf_divu_visc (const FArrayBox& S,
     BL_ASSERT(divu.nComp()    >  d_ind);
     BL_ASSERT(visc.nComp()    >= v_ind+num_comp);
     BL_ASSERT(rho.nComp()     >  r_ind);
-    
+
     const int *slo    = S.loVect();
     const int *shi    = S.hiVect();
     const int *tlo    = tforces.loVect();
@@ -962,7 +935,7 @@ Godunov::Sum_tf_divu_visc (const FArrayBox& S,
     const Real *DUdat = divu.dataPtr(d_ind);
     const Real *VIdat = visc.dataPtr(v_ind);
     const Real *RHdat = rho.dataPtr(r_ind);
-     
+
     fort_sum_tf_divu_visc(Sdat,  ARLIM(slo), ARLIM(shi),
                           TFdat, ARLIM(tlo), ARLIM(thi),
                           DUdat, ARLIM(dlo), ARLIM(dhi),

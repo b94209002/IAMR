@@ -13,14 +13,18 @@
 #include <AMReX_ErrorList.H>
 #include <AMReX_FluxRegister.H>
 #include <Godunov.H>
-#include <MacProj.H> 
+#include <MacProj.H>
 #include <Projection.H>
 #include <SyncRegister.H>
 #include <AMReX_Utility.H>
-#include <ViscBndry.H>
 
 #ifdef AMREX_PARTICLES
 #include <AMReX_AmrParticles.H>
+#endif
+
+#ifdef AMREX_USE_EB
+#include <AMReX_EBCellFlag.H>
+#include <AMReX_EBFluxRegister.H>
 #endif
 
 //
@@ -56,7 +60,7 @@ public:
     friend class Projection;
     friend class MacProj;
     friend class Diffusion;
-    
+
     virtual ~NavierStokesBase ();
 
     ////////////////////////////////////////////////////////////////////////////
@@ -108,7 +112,7 @@ public:
     // Called in grid_places after other tagging routines to modify
     //   the list of tagged points
     //
-    virtual void manual_tags_placement (amrex::TagBoxArray&    tags, 
+    virtual void manual_tags_placement (amrex::TagBoxArray&    tags,
 					const amrex::Vector<amrex::IntVect>& bf_lev) override;
     //
     // Estimate the end of the simulation for amrLevel.
@@ -116,7 +120,7 @@ public:
     virtual int okToContinue () override;
     //
 	// Check whether simulation has reached steady state, i.e. whether the
-	// change from last iteration is below a prescribed threshold steady_tol. 
+	// change from last iteration is below a prescribed threshold steady_tol.
     //
     virtual int steadyState ();
     //
@@ -170,12 +174,27 @@ public:
     // Get pressure gradient data via fill-patching.
     //
     void getGradP (amrex::MultiFab& gp, amrex::Real time);
+
+#ifdef AMREX_USE_EB
+    const amrex::MultiFab* VolFrac () const { return volfrac; }
+    amrex::MultiFab& getGradP() { return *gradp; }
+#endif
     //
     // Boundary condition access functions.
     //
     amrex::Vector<int> fetchBCArray (int State_Type, const amrex::Box& bx,
-			           int scomp, int ncomp);
+				     int scomp, int ncomp);
 
+    amrex::Vector<amrex::BCRec> fetchBCArray (int State_Type, int scomp, int ncomp);
+
+    //
+    // Select appropriate AMReX average_down() based on EB/non-EB and dimensionality
+    // for use in derived classes and Projection sync fns and initial vel proj
+    //
+    void average_down(const amrex::MultiFab& S_fine, amrex::MultiFab& S_crse,
+		      int scomp, int ncomp);
+
+    void calc_mut_LES(amrex::MultiFab*  diffusivity[BL_SPACEDIM], amrex::Real time);
 
     ////////////////////////////////////////////////////////////////////////////
     //    NavierStokesBase public static functions                            //
@@ -209,77 +228,15 @@ protected:
     //
     // Get the forcing term.
     //
-#ifdef BOUSSINESQ
     void getForce (amrex::FArrayBox&       force,
-                   int              gridno,
+                   const amrex::Box&      bx,
                    int              ngrow,
                    int              strt_comp,
                    int              num_comp,
-		   const amrex::Real       time,
-                   const amrex::FArrayBox& Scal);
-    void getForce (amrex::FArrayBox&       force,
-		   const amrex::Box&      bx,
-                   int              ngrow,
-                   int              strt_comp,
-                   int              num_comp,
-		   const amrex::Real       time,
-                   const amrex::FArrayBox& Scal);
-#else
-#ifdef MOREGENGETFORCE
-    void getForce (amrex::FArrayBox&       force,
-                   int              gridno,
-                   int              ngrow,
-                   int              strt_comp,
-                   int              num_comp,
-		   const amrex::Real       time,
+                   const amrex::Real       time,
                    const amrex::FArrayBox& Vel,
                    const amrex::FArrayBox& Scal,
-		   int              scalScomp);
-    void getForce (amrex::FArrayBox&       force,
-		   const amrex::Box&      bx,
-                   int              ngrow,
-                   int              strt_comp,
-                   int              num_comp,
-		   const amrex::Real       time,
-                   const amrex::FArrayBox& Vel,
-                   const amrex::FArrayBox& Scal,
-		   int              scalScomp);
-#else
-#ifdef GENGETFORCE
-  void getForce (amrex::FArrayBox&       force,
-                   int              gridno,
-                   int              ngrow,
-                   int              strt_comp,
-                   int              num_comp,
-		   const amrex::Real       time,
-                   const amrex::FArrayBox& Rho,
-                   int              RComp = 0);
-  void getForce (amrex::FArrayBox&       force,
-		   const amrex::Box&      bx,
-                   int              ngrow,
-                   int              strt_comp,
-                   int              num_comp,
-		   const amrex::Real       time,
-                   const amrex::FArrayBox& Rho,
-                   int              RComp = 0);
-#else
-  void getForce (amrex::FArrayBox&       force,
-                   int              gridno,
-                   int              ngrow,
-                   int              strt_comp,
-                   int              num_comp,
-                   const amrex::FArrayBox& Rho,
-                   int              RComp = 0);
-  void getForce (amrex::FArrayBox&       force,
-		   const amrex::Box&      bx,
-                   int              ngrow,
-                   int              strt_comp,
-                   int              num_comp,
-                   const amrex::FArrayBox& Rho,
-                   int              RComp = 0);
-#endif		 
-#endif		 
-#endif		 
+                   int              scalScomp);
     //
     amrex::FluxRegister& getAdvFluxReg () {
         BL_ASSERT(advflux_reg);
@@ -313,14 +270,6 @@ protected:
                      amrex::Real            alpha);
 
     void initial_velocity_diffusion_update (amrex::Real dt);
-
-    //
-    // Inject fine pressure nodes down onto coarse nodes.
-    //
-    void injectDown (const amrex::Box&       ovlp,
-                     amrex::FArrayBox&       Pcrse,
-                     const amrex::FArrayBox& Pfine,
-                     amrex::IntVect&         fine_ratio);
     //
     // Compute level projection.
     //
@@ -336,7 +285,7 @@ protected:
     //
     void mac_project (amrex::Real      time,
                       amrex::Real      dt,
-                      amrex::MultiFab& S_old, 
+                      amrex::MultiFab& S_old,
                       amrex::MultiFab* divu,
                       int       ngrow,
                       bool      increment_vel_register);
@@ -410,6 +359,11 @@ protected:
     void velocity_update (amrex::Real dt);
 
     void velocity_advection_update (amrex::Real dt);
+    
+    void LES_setDomainBC (std::array<amrex::LinOpBCType,AMREX_SPACEDIM>& mlmg_lobc,
+                      std::array<amrex::LinOpBCType,AMREX_SPACEDIM>& mlmg_hibc,
+                      int src_comp);
+
 
     amrex::Real volWgtSum (const std::string& name,
                     amrex::Real               time);
@@ -419,7 +373,7 @@ protected:
     void TurbSum (amrex::Real time, amrex::Real *tmp, int  ksize, int turbVars);
 #ifdef SUMJET
     void sum_jet_quantities ();
-    void JetSum   (amrex::Real time, 
+    void JetSum   (amrex::Real time,
 		   amrex::Real *jetData,
 		   int  levRsize,
 		   int  levKsize,
@@ -439,7 +393,7 @@ protected:
 				int  ncycle);
 
     virtual void avgDown () = 0; // Average down for all the state types.
-    //
+
     virtual void calc_divu (amrex::Real      time,
 			    amrex::Real      dt,
 			    amrex::MultiFab& fab) = 0;
@@ -470,7 +424,7 @@ protected:
     // Compute viscous terms.
     //
     virtual void getViscTerms (amrex::MultiFab& visc_terms,
-			       int       src_comp, 
+			       int       src_comp,
 			       int       num_comp,
 			       amrex::Real      time) = 0;
     //
@@ -497,9 +451,14 @@ protected:
     ////////////////////////////////////////////////////////////////////////////
 
     static void variableCleanUp (); // Cleanup data descriptors at end of run.
-    static void Initialize ();   // Read input file
+    static void Initialize ();   // Read input file common to IAMR and PeleLM
+    static void Initialize_specific ();   // Read input file specific to IAMR
     static void Finalize ();
     static void read_geometry (); // Set metrics
+
+    ////////////////////////////////////////////////////////////////////////////
+    //    NavierStokesBase particle functions                                 //
+    ////////////////////////////////////////////////////////////////////////////
 
 #ifdef AMREX_PARTICLES
     static amrex::AmrTracerParticleContainer* theNSPC ();
@@ -517,6 +476,19 @@ protected:
     void ParticleDerive (const std::string& name, amrex::Real time, amrex::MultiFab& mf, int dcomp);
 #endif
 
+    ////////////////////////////////////////////////////////////////////////////
+    //    NavierStokesBase diagnostics functions                              //
+    ////////////////////////////////////////////////////////////////////////////
+    void printMaxVel (bool new_data = true);
+
+    void printMaxGp (bool new_data = true);
+
+    void printMaxValues (bool new_data = true);
+
+    ////////////////////////////////////////////////////////////////////////////
+    //    NavierStokesBase protected embedded boundary functions              //
+    ////////////////////////////////////////////////////////////////////////////
+
 private:
 
     void buildMetrics (); // 1-D metric arrays for RZ
@@ -529,7 +501,7 @@ private:
     //
     void create_umac_grown (int nGrow);
     //
-    NavierStokesBase& getLevel (int lev) { 
+    NavierStokesBase& getLevel (int lev) {
 	return dynamic_cast<NavierStokesBase&> ( parent->getLevel(lev) );
     }
     //
@@ -563,15 +535,66 @@ private:
     //
     amrex::Real initialTimeStep ();
     //
-    void SetGodunov () { if (godunov == 0) godunov = new Godunov(); };
+    void SetGodunov () {
+
+    if (godunov == 0) godunov = new Godunov();
+
+    };
+
+#ifdef AMREX_USE_EB
+
+    void init_eb (const amrex::Geometry& level_geom, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
+
+    void initialize_eb2_structs();
+    void define_body_state();
+
+
+    static bool ebInitialized();
+    static bool eb_initialized;
+    static bool body_state_set;
+    static bool      no_eb_in_domain;
+    static std::vector<amrex::Real> body_state;
+
+#endif
 
 //
 // Data
 //
 protected:
 
+    // fixme? for now, volume and area are intentionally without EB knowledge
     amrex::MultiFab volume;
     amrex::MultiFab area[BL_SPACEDIM];
+
+#ifdef AMREX_USE_EB
+
+    void set_body_state(amrex::MultiFab& S);
+
+    const amrex::MultiFab* volfrac;
+    const amrex::MultiCutFab* bndrycent;
+    amrex::FabArray<amrex::BaseFab<int>> ebmask;
+
+    std::array<const amrex::MultiCutFab*, AMREX_SPACEDIM> areafrac;
+    std::array<const amrex::MultiCutFab*, AMREX_SPACEDIM> facecent;
+
+    // Pressure gradients
+    std::unique_ptr<amrex::MultiFab> gradp ;
+
+  //fixme? taking a guess that i'll need this other data cribbed from CNS
+    // amrex::iMultiFab level_mask;
+
+    // amrex::EBFluxRegister flux_reg;
+
+    // static constexpr int level_mask_interior   = 0; // valid cells
+    // static constexpr int level_mask_covered    = 1; // ghost cells covered by valid cells of this level
+    // static constexpr int level_mask_notcovered = 2; // ghost cells not covered
+    // static constexpr int level_mask_physbnd    = 3; // outside domain
+
+    amrex::MultiFab m_xslopes;
+    amrex::MultiFab m_yslopes;
+    amrex::MultiFab m_zslopes;
+
+#endif
 
     //
     // MAC edge velocities.
@@ -584,10 +607,10 @@ protected:
 
     Diffusion* diffusion;
     //
-    // amrex::MultiFab arrays for variable viscosity and diffusivity
+    // arrays for variable viscosity and diffusivity
     //
-    amrex::MultiFab *viscn_cc, *viscnp1_cc;
-    amrex::MultiFab *diffn_cc, *diffnp1_cc;
+    FluxBoxes fb_viscn, fb_viscnp1, fb_diffn, fb_diffnp1;
+    amrex::MultiFab **viscn, **viscnp1, **diffn, **diffnp1;
     //
     // Sync update quantities.
     //
@@ -600,7 +623,7 @@ protected:
     // Used only to average fine pressure data to coarse.
     //
     amrex::MultiFab p_avg;
-    
+
     amrex::MultiFab Vsync;    // Velocity sync update storage
     amrex::MultiFab Ssync;    // Scalar sync update storage
     //
@@ -622,7 +645,7 @@ protected:
     //
     SyncRegister* sync_reg;
     //
-    // Data structures to store advective and viscous refluxing quantities 
+    // Data structures to store advective and viscous refluxing quantities
     // on coarse-fine grid interfaces.
     //
     amrex::FluxRegister* advflux_reg;
@@ -655,19 +678,21 @@ protected:
     // Internal parameters for timestepping.
     //
     static amrex::Real init_shrink;   // reduction factor of first esimated timestep
-    static int  init_iter;     // # of timestep iterations for initial pressure
+    static int  init_iter;            // # of timestep iterations for initial pressure
+    static int  init_vel_iter;        // # of iterations for initial velocity projection
     static amrex::Real cfl;           // desired maximum cfl
     static amrex::Real change_max;    // maximum change in dt over a timestep
     static amrex::Real fixed_dt;      // set > 0 to specify dt
-	static bool stop_when_steady; 	  // set to true if simulation should stop at steady-state
-	static amrex::Real steady_tol;    // tolerance for assuming steady-state has been reached
-    static int  initial_iter;  // flag for initial pressure iterations
-    static int  initial_step;  // flag for initial iterations
+    static amrex::Real init_dt;       // set > 0 to specify initial dt at coarsest level
+    static bool stop_when_steady;     // set to true if simulation should stop at steady-state
+    static amrex::Real steady_tol;    // tolerance for assuming steady-state has been reached
+    static int  initial_iter;         // flag for initial pressure iterations
+    static int  initial_step;         // flag for initial iterations
     static amrex::Real dt_cutoff;     // minimum dt allowed
-    static int  sum_interval;  // number of timesteps for conservation stats
-    static int  turb_interval; // number of timesteps for turbulence stats
-    static int  jet_interval;  // number of timesteps for turbulence stats for the round jet
-    static int  jet_interval_split;  // cell divisor for each dimension in numerical integration 
+    static int  sum_interval;         // number of timesteps for conservation stats
+    static int  turb_interval;        // number of timesteps for turbulence stats
+    static int  jet_interval;         // number of timesteps for turbulence stats for the round jet
+    static int  jet_interval_split;  // cell divisor for each dimension in numerical integration
     //
     // Internal parameters for options.
     //
@@ -676,6 +701,12 @@ protected:
     static amrex::Real       gravity;
     static int        NUM_SCALARS;      // number of non-velocity components
     static int        NUM_STATE;        // total number of state variables
+#ifdef AMREX_USE_EB
+    static const int  NUM_GROW=4;         // number of ghost cells
+    static int refine_cutcells;
+#else
+    static const int  NUM_GROW=1;         // number of ghost cells
+#endif
     //
     // Controls over how the convective and diffusive terms are calculated
     // for each state variable.
@@ -690,8 +721,6 @@ protected:
     static amrex::Real        visc_tol;
     static amrex::Real        visc_abs_tol;
     static amrex::Real        be_cn_theta;
-    static int         variable_vel_visc;  // variable viscosity flag
-    static int         variable_scal_diff; // variable scalar diffusion flag
     //
     // Internal switches.
     //
@@ -703,15 +732,13 @@ protected:
     static int  do_cons_trac;
     static int  do_cons_trac2;
     static int  do_sync_proj;
-    static int  do_MLsync_proj;
     static int  do_reflux;
     static int  modify_reflux_normal_vel;
     static int  do_mac_proj;
-    static int  do_divu_sync;
     static int  do_refine_outflow;          // The following three items control
-    static int  do_derefine_outflow;        //   how grids are treated at 
+    static int  do_derefine_outflow;        //   how grids are treated at
     static int  Nbuf_outflow;               //   outflow boundaries.
-    static int  do_denminmax;               // The code for these was in NavierStokes.cpp, 
+    static int  do_denminmax;               // The code for these was in NavierStokes.cpp,
     static int  do_scalminmax;              //   but the flags were not declared or read in.
     static int  do_density_ref;             // Flags added for refinement control
     static int  do_tracer_ref;
@@ -721,6 +748,14 @@ protected:
     static int  do_scalar_update_in_order;  // Flags to allow evaluation of source terms
     static amrex::Vector<int> scalarUpdateOrder;
     static int  getForceVerbose;            // Does exactly what it says on the tin
+    //
+    // LES parameters
+    //
+    static int  do_LES;             // To activate LES modelling
+    static int  getLESVerbose;      // Does exactly what it says on the tin
+    static std::string LES_model;   // To choose a LES model
+    static amrex::Real smago_Cs_cst;       // A parameter for the Smagorinsky model, usually set to 0.18    
+    static amrex::Real sigma_Cs_cst;       // A parameter for the Sigma model, usually set to 1.5 
     //
     // Member when pressure defined at points in time rather than interval
     //
@@ -758,6 +793,7 @@ protected:
     //
     // static integer constants
     //
+  // FIXME?  do these need to be adjusted for EB??? see NUM_GROW above
     static const int GEOM_GROW  = 1;
     static const int PRESS_GROW = 1;
     static const int DIVU_GROW  = 1;
