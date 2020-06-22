@@ -150,7 +150,7 @@ contains
       namelist /fortin/ do_inlet_ref, inlet_ref_height
       namelist /fortin/ lid_vel
 
-      namelist /fortin/ rb_nfreq,rb_pertamp,rb_rho,rb_d0,rb_dh,rb_m0,rb_mh,rb_bv,rb_omega
+      namelist /fortin/ rb_nfreq,rb_pertamp,rb_rho,rb_d0,rb_dh,rb_m0,rb_mh,rb_bv,rb_omega,rb_qrad
 
 !c
 !c      Build "probin" filename -- the name of file containing fortin namelist.
@@ -4135,13 +4135,26 @@ contains
                enddo
             else if (n == nTrac) then
                ! Tracer
-               do k = f_lo(3), f_hi(3)
-                  do j = f_lo(2), f_hi(2)
-                     do i = f_lo(1), f_hi(1)
-                        force(i,j,k,n) = zero
+               if (probtype == 31) then
+                  ! MRBC, radiative cooling
+                  Lz = domnhi(3)-domnlo(3)
+                  do k = f_lo(3), f_hi(3)
+                     z = xlo(3) + hz*(float(k-f_lo(3)) + half)
+                     do j = f_lo(2), f_hi(2)
+                        do i = f_lo(1), f_hi(1)
+                           force(i,j,k,n) = - rb_qrad * sin(Pi*z/Lz)
+                        enddo
                      enddo
                   enddo
-               enddo
+               else
+                  do k = f_lo(3), f_hi(3)
+                     do j = f_lo(2), f_hi(2)
+                        do i = f_lo(1), f_hi(1)
+                           force(i,j,k,n) = zero
+                        enddo
+                     enddo
+                  enddo
+               endif
             else if ( n==nTrac2 .and. do_trac2==1 ) then
                ! Other scalar
                if (probtype == 20) then 
@@ -4178,6 +4191,17 @@ contains
                            else
                               force(i,j,k,n) = zero
                            endif
+                        enddo
+                     enddo
+                  enddo
+               else if (probtype.eq.31) then
+                  ! MRBC, radiative cooling
+                  Lz = domnhi(3)-domnlo(3)
+                  do k = f_lo(3), f_hi(3)
+                     z = xlo(3) + hz*(float(k-f_lo(3)) + half)
+                     do j = f_lo(2), f_hi(2)
+                        do i = f_lo(1), f_hi(1)
+                           force(i,j,k,n) = - half * rb_qrad * sin(Pi*z/Lz)
                         enddo
                      enddo
                   enddo
