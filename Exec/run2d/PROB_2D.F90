@@ -84,7 +84,7 @@ contains
                        forceLo, forceHi, flct_file, turb_scale
 #endif
 
-      namelist /fortin/ rb_rho, rb_d0, rb_dh, rb_m0, rb_mh, rb_bv, rb_omega, liquiderr
+      namelist /fortin/ rb_rho, rb_d0, rb_dh, rb_m0, rb_mh, rb_bv, rb_omega
 
 !c
 !c      Build "probin" filename -- the name of file containing fortin namelist.
