@@ -278,10 +278,10 @@ NavierStokesBase::NavierStokesBase (Amr&            papa,
     //
     // Allocate the storage for variable viscosity and diffusivity
     //
-    viscn   = fb_viscn.define(this,1,0);
-    viscnp1 = fb_viscnp1.define(this,1,0);
-    diffn   = fb_diffn.define(this,NUM_STATE-Density-1,0);
-    diffnp1 = fb_diffnp1.define(this,NUM_STATE-Density-1,0);
+    diffn_cc = new MultiFab(grids, dmap, NUM_STATE-Density-1, 1, MFInfo(), Factory());
+    diffnp1_cc = new MultiFab(grids, dmap, NUM_STATE-Density-1, 1, MFInfo(), Factory());
+    viscn_cc = new MultiFab(grids, dmap, 1, 1, MFInfo(), Factory());
+    viscnp1_cc = new MultiFab(grids, dmap, 1, 1, MFInfo(), Factory());
 
     //
     // Set up the mac projector.
@@ -309,10 +309,10 @@ NavierStokesBase::~NavierStokesBase ()
     // Remove the arrays for variable viscosity and diffusivity
     // and delete the Diffusion object
     //
-    fb_viscn.clear();
-    fb_viscnp1.clear();
-    fb_diffn.clear();
-    fb_diffnp1.clear();
+    delete viscn_cc;
+    delete viscnp1_cc;
+    delete diffn_cc;
+    delete diffnp1_cc;
 
     delete diffusion;
 }
@@ -717,22 +717,7 @@ NavierStokesBase::advance_setup (Real time,
     // Alloc MultiFab to hold advective update terms.
     //
     BL_ASSERT(aofs == 0);
-    // NOTE: nghost=0 for aofs appears to work. mfix also uses no ghost cells.
     aofs = new MultiFab(grids,dmap,NUM_STATE,0,MFInfo(),Factory());
-
-#ifdef AMREX_USE_EB
-    //Slopes in x-direction
-    m_xslopes.define(grids, dmap, AMREX_SPACEDIM, Godunov::hypgrow(), MFInfo(), Factory());
-    m_xslopes.setVal(0.);
-    // Slopes in y-direction
-    m_yslopes.define(grids, dmap, AMREX_SPACEDIM, Godunov::hypgrow(), MFInfo(), Factory());
-    m_yslopes.setVal(0.);
-#if (AMREX_SPACEDIM > 2)
-    // Slopes in z-direction
-    m_zslopes.define(grids, dmap, AMREX_SPACEDIM, Godunov::hypgrow(), MFInfo(), Factory());
-    m_zslopes.setVal(0.);
-#endif
-#endif
 
     //
     // Set rho_avg.
@@ -2819,8 +2804,8 @@ NavierStokesBase::resetState (Real time,
 
 void
 NavierStokesBase::restart (Amr&          papa,
-                       std::istream& is,
-                       bool          bReadSpecial)
+			   std::istream& is,
+			   bool          bReadSpecial)
 {
     AmrLevel::restart(papa,is,bReadSpecial);
 
@@ -2915,10 +2900,10 @@ NavierStokesBase::restart (Amr&          papa,
     //
     // Allocate the storage for variable viscosity and diffusivity
     //
-    viscn   = fb_viscn.define(this,1,0);
-    viscnp1 = fb_viscnp1.define(this,1,0);
-    diffn   = fb_diffn.define(this,NUM_STATE-Density-1,0);
-    diffnp1 = fb_diffnp1.define(this,NUM_STATE-Density-1,0);
+    diffn_cc = new MultiFab(grids, dmap, NUM_STATE-Density-1, 1, MFInfo(), Factory());
+    diffnp1_cc = new MultiFab(grids, dmap, NUM_STATE-Density-1, 1, MFInfo(), Factory());
+    viscn_cc = new MultiFab(grids, dmap, 1, 1, MFInfo(), Factory());
+    viscnp1_cc = new MultiFab(grids, dmap, 1, 1, MFInfo(), Factory());
 
     is_first_step_after_regrid = false;
     old_intersect_new          = grids;
@@ -3874,6 +3859,7 @@ NavierStokesBase::velocity_advection_update (Real dt)
         //
         // Average the mac face velocities to get cell centred velocities.
         //
+	//FIXME - need to address this for EB
         FArrayBox Vel(amrex::grow(bx,0),BL_SPACEDIM);
         FORT_AVERAGE_EDGE_STATES(BL_TO_FORTRAN_ANYD(Vel),
                                  BL_TO_FORTRAN_ANYD(u_mac[0][Rhohalf_mfi]),
