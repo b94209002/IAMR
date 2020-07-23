@@ -62,6 +62,9 @@ namespace
     static int max_fmg_iter = 0;
     static int use_hypre = 0;
     static int hypre_verbose = 0;
+    static int semicoarsening = false;
+    static int max_semicoarsening_level = 0;
+    static int bottom_verbose = false;
 }
 //
 // Set default values in !initialized section of code in constructor!!!
@@ -137,6 +140,9 @@ Diffusion::Diffusion (Amr*               Parent,
         ppdiff.query("use_hypre", use_hypre);
         ppdiff.query("hypre_verbose", hypre_verbose);
 #endif
+        ppdiff.query("semicoarsening", semicoarsening);
+        ppdiff.query("max_semicoarsening_level", max_semicoarsening_level);
+        ppdiff.query("bottom_verbose", bottom_verbose);
 
         ParmParse pp("ns");
 
@@ -342,6 +348,8 @@ Diffusion::diffuse_scalar (const Vector<MultiFab*>&  S_old,
     infon.setConsolidation(consolidation);
     infon.setMetricTerm(false);
     infon.setMaxCoarseningLevel(0);
+    infon.setSemicoarsening(semicoarsening);
+    infon.setMaxSemicoarseningLevel(max_semicoarsening_level);
 
 #ifdef AMREX_USE_EB
     const auto& ebf = &(dynamic_cast<EBFArrayBoxFactory const&>(factory));
@@ -353,11 +361,14 @@ Diffusion::diffuse_scalar (const Vector<MultiFab*>&  S_old,
     opn.setMaxOrder(max_order);
     MLMG mgn(opn);
     mgn.setVerbose(verbose);
+    mgn.setBottomVerbose(bottom_verbose);
 
     LPInfo infonp1;
     infonp1.setAgglomeration(agglomeration);
     infonp1.setConsolidation(consolidation);
     infonp1.setMetricTerm(false);
+    infonp1.setSemicoarsening(semicoarsening);
+    infonp1.setMaxSemicoarseningLevel(max_semicoarsening_level);
 
 #ifdef AMREX_USE_EB
     MLEBABecLap opnp1({geom}, {ba}, {dm}, infonp1, {ebf});
@@ -375,6 +386,7 @@ Diffusion::diffuse_scalar (const Vector<MultiFab*>&  S_old,
     }
     mgnp1.setMaxFmgIter(max_fmg_iter);
     mgnp1.setVerbose(verbose);
+    mgnp1.setBottomVerbose(bottom_verbose);
 
     setDomainBC(mlmg_lobc, mlmg_hibc, bc); // Same for all comps, by assumption
     opn.setDomainBC(mlmg_lobc, mlmg_hibc);

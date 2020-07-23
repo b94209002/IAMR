@@ -25,6 +25,9 @@ namespace {
     static int max_fmg_iter = 0;
     static int use_hypre = 0;
     static int hypre_verbose = 0;
+    static int semicoarsening = false;
+    static int max_semicoarsening_level = 0;
+    static int bottom_verbose = false;
 }
 
 namespace {
@@ -73,7 +76,9 @@ void mlmg_mac_level_solve (Amr* parent, const MultiFab* cphi, const BCRec& phys_
         ppmac.query("use_hypre", use_hypre);
         ppmac.query("hypre_verbose", hypre_verbose);
 #endif
-
+        ppmac.query("semicoarsening", semicoarsening);
+        ppmac.query("max_semicoarsening_level", max_semicoarsening_level);
+        ppmac.query("bottom_verbose", bottom_verbose);
         initialized = true;
     }
 
@@ -121,6 +126,8 @@ void mlmg_mac_level_solve (Amr* parent, const MultiFab* cphi, const BCRec& phys_
     LPInfo info;
     info.setAgglomeration(agglomeration);
     info.setConsolidation(consolidation);
+    info.setSemicoarsening(semicoarsening);
+    info.setMaxSemicoarseningLevel(max_semicoarsening_level);
 
     Array<MultiFab*,AMREX_SPACEDIM>  umac;
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim)
@@ -161,6 +168,9 @@ void mlmg_mac_level_solve (Amr* parent, const MultiFab* cphi, const BCRec& phys_
     // Ask about this one
     macproj.getMLMG().setMaxFmgIter(max_fmg_iter);
     macproj.setVerbose(verbose);
+    
+    macproj.getMLMG().setBottomVerbose(bottom_verbose);
+
 
     //
     // Perform projection

@@ -3,15 +3,15 @@
 # INPUTS.3D.EULER
 #*******************************************************************************
 
-max_step 		= 6000
+max_step 		= 1
 
 stop_time 		= 2000.0
 
 amr.n_cell              = 128 128 32
 amr.max_grid_size       = 32
 
-amr.max_level           = 2
-ns.do_liquid_ref        = 1
+amr.max_level           = 0
+ns.do_liquid_ref        = 0
 ns.do_tracer2_ref       = 0
 ns.do_vorticity_ref     = 0
 
@@ -22,7 +22,7 @@ ns.v                    = 1
 amr.v                   = 1
 
 amr.check_int		= 300 
-amr.restart		= chk05300
+#amr.restart		= chk05300
 
 amr.plot_int		= 10
 #amr.plot_per            = 10.
@@ -35,8 +35,8 @@ ns.do_init_proj         = 0
 
 ns.be_cn_theta          = 0.5
 
-ns.vel_visc_coef        = 0.0001
-ns.scal_diff_coefs      = 0.00014 0.00014
+ns.vel_visc_coef        = 0.001
+ns.scal_diff_coefs      = 0.0014 0.0014
 
 ns.do_cons_trac         = 1
 ns.do_trac2             = 1
@@ -70,5 +70,18 @@ amr.ref_ratio           = 2 2 2 2
 
 amr.derive_plot_vars    = energy liquid_water mag_vort humidity gradpx gradpy gradpz
 
-proj.v     = 4
-proj.Pcode = 2
+mac.v = 5
+mac.semicoarsening = 1
+mac.max_semicoarsening_level = 3
+mac.bottom_verbose = 1
+
+diffuse.v = 5
+diffuse.semicoarsening = 1
+diffuse.max_semicoarsening_level = 3
+diffuse.bottom_verbose = 1
+
+proj.v = 5
+proj.semicoarsening = 1
+proj.max_semicoarsening_level = 3
+proj.bottom_verbose = 1
+

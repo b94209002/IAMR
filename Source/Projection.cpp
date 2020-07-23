@@ -61,6 +61,9 @@ namespace
     int max_fmg_iter = 0;
     bool use_gauss_seidel = true;
     bool use_harmonic_average = false;
+    bool semicoarsening = false;
+    int max_semicoarsening_level = 0;
+    bool bottom_verbose = false;
 }
 
 
@@ -88,6 +91,8 @@ Projection::Initialize ()
     pp.query("max_fmg_iter",        max_fmg_iter);
     pp.query("use_gauss_seidel",    use_gauss_seidel);
     pp.query("use_harmonic_average", use_harmonic_average);
+    pp.query("semicoarsening",      semicoarsening);
+    pp.query("max_semicoarsening_level", max_semicoarsening_level);
 
     pp.query("proj_2",              proj_2);
     if (!proj_2)
@@ -2283,6 +2288,8 @@ void Projection::doMLMGNodalProjection (int c_lev, int nlevel,
     info.setAgglomeration(agglomeration);
     info.setConsolidation(consolidation);
     info.setMetricTerm(false);
+    info.setSemicoarsening(semicoarsening);
+    info.setMaxSemicoarseningLevel(max_semicoarsening_level);
 
     //
     // Setup variables to use in projection
@@ -2320,6 +2327,9 @@ void Projection::doMLMGNodalProjection (int c_lev, int nlevel,
     nodal_projector.getLinOp().setGaussSeidel(use_gauss_seidel);
     nodal_projector.getLinOp().setHarmonicAverage(use_harmonic_average);
     nodal_projector.getMLMG().setMaxFmgIter(max_fmg_iter);
+    
+    nodal_projector.getMLMG().setVerbose(verbose);
+    nodal_projector.getMLMG().setBottomVerbose(bottom_verbose);   
 
     if (sync_resid_fine != 0)
     {
