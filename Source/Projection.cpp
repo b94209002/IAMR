@@ -2331,6 +2331,8 @@ void Projection::doMLMGNodalProjection (int c_lev, int nlevel,
     nodal_projector.getMLMG().setVerbose(verbose);
     nodal_projector.getMLMG().setBottomVerbose(bottom_verbose);   
 
+    amrex::Print() << "bottom_verbose = " << bottom_verbose << std::endl;
+
     if (sync_resid_fine != 0)
     {
         nodal_projector.setSyncResidualFine(sync_resid_fine);

@@ -770,8 +770,7 @@ Diffusion::diffuse_tensor_velocity (Real                   dt,
          //mlmg.setMaxIter(max_iter);
          mlmg.setMaxFmgIter(max_fmg_iter);
          mlmg.setVerbose(10);
-         mlmg.setBottomVerbose(10);
-         //mlmg.setBottomVerbose(bottom_verbose);
+         //mlmg.setBottomVerbose(10);
 
          int nghost(2);
          MultiFab Rhs_tmp(grids,dmap,AMREX_SPACEDIM,nghost, MFInfo(),navier_stokes->Factory());
@@ -858,6 +857,8 @@ Diffusion::diffuse_tensor_velocity (Real                   dt,
       info.setConsolidation(consolidation);
       info.setMetricTerm(false);
       info.setMaxCoarseningLevel(100);
+      info.setSemicoarsening(semicoarsening);
+      info.setMaxSemicoarseningLevel(max_semicoarsening_level);
 
 #ifdef AMREX_USE_EB
       const auto& ebf = &dynamic_cast<EBFArrayBoxFactory const&>(navier_stokes->Factory());
@@ -917,9 +918,9 @@ Diffusion::diffuse_tensor_velocity (Real                   dt,
       //mlmg.setMaxIter(max_iter);
       mlmg.setMaxFmgIter(max_fmg_iter);
       mlmg.setVerbose(verbose);
-      //mlmg.setBottomVerbose(bottom_verbose);
+      mlmg.setBottomVerbose(bottom_verbose);
 
-      // ensures ghost cells of sol are correctly filled when returned from solver
+     // ensures ghost cells of sol are correctly filled when returned from solver
       mlmg.setFinalFillBC(true);
 
       //    solution.setVal(0.0);

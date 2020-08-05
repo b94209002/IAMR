@@ -54,7 +54,7 @@ geometry.is_periodic =  1 1 0
 
 ns.gravity = 0.0
 
-ns.lo_bc             = 0 0 5
+ns.lo_bc             = 0 0 4
 ns.hi_bc             = 0 0 4
 
 # 0 = Interior/Periodic  3 = Symmetry
@@ -81,7 +81,7 @@ diffuse.max_semicoarsening_level = 3
 diffuse.bottom_verbose = 1
 
 proj.v = 5
-proj.semicoarsening = 1
+proj.semicoarsening = 0
 proj.max_semicoarsening_level = 3
 proj.bottom_verbose = 1
 
