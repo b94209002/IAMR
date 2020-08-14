@@ -368,6 +368,40 @@ contains
                   enddo
                enddo
             enddo
+         elseif (probtype .eq. 31) then 
+!c     Rayleigh-Benard 
+            if (do_trac2 .eq. 1) then
+            ! Moist Rayleigh-Benard
+               do k = f_lo(3), f_hi(3)
+                  z = xlo(3) + hz*(float(k-f_lo(3)) + half)
+                  do j = f_lo(2), f_hi(2)
+                     y = xlo(2) + hy*(float(j-f_lo(2)) + half)
+                     do i = f_lo(1), f_hi(1)
+                        x = xlo(1) + hx*(float(i-f_lo(1)) + half)
+
+                        force(i,j,k,nXvel) = scal(i,j,k,nRhoScal)*rb_omega*vel(i,j,k,nYvel)
+                        force(i,j,k,nYvel) = -scal(i,j,k,nRhoScal)*rb_omega*vel(i,j,k,nXvel)
+                        force(i,j,k,nZvel) = max(scal(i,j,k,nTrac2Scal), scal(i,j,k,nTracScal) - rb_bv*z)
+
+                     enddo
+                  enddo
+               enddo
+            else
+            !  standard Rayleigh-Benard
+               do k = f_lo(3), f_hi(3)
+                  z = xlo(3) + hz*(float(k-f_lo(3)) + half)
+                  do j = f_lo(2), f_hi(2)
+                     y = xlo(2) + hy*(float(j-f_lo(2)) + half)
+                     do i = f_lo(1), f_hi(1)
+                        x = xlo(1) + hx*(float(i-f_lo(1)) + half)
+                        force(i,j,k,nXvel) = scal(i,j,k,nRhoScal)*rb_omega*vel(i,j,k,nYvel)
+                        force(i,j,k,nYvel) =-scal(i,j,k,nRhoScal)*rb_omega*vel(i,j,k,nXvel)
+                        force(i,j,k,nZvel) = scal(i,j,k,nTracScal)
+
+                     enddo
+                  enddo
+               enddo
+             endif
          else if (probtype == 99 .and. abs(grav_angle) > 0.001) then
 !     Angled gravity
             sga =  gravity * sin(Pi*grav_angle/180.)
@@ -431,13 +465,26 @@ contains
                enddo
             else if (n == nTrac) then
                ! Tracer
-               do k = f_lo(3), f_hi(3)
-                  do j = f_lo(2), f_hi(2)
-                     do i = f_lo(1), f_hi(1)
-                        force(i,j,k,n) = zero
+               if (probtype == 31) then
+                  ! MRBC, radiative cooling
+                  Lz = domnhi(3)-domnlo(3)
+                  do k = f_lo(3), f_hi(3)
+                     z = xlo(3) + hz*(float(k-f_lo(3)) + half)
+                     do j = f_lo(2), f_hi(2)
+                        do i = f_lo(1), f_hi(1)
+                           force(i,j,k,n) = - rb_qrad * sin(Pi*z/Lz)
+                        enddo
                      enddo
                   enddo
-               enddo
+               else
+                  do k = f_lo(3), f_hi(3)
+                     do j = f_lo(2), f_hi(2)
+                        do i = f_lo(1), f_hi(1)
+                           force(i,j,k,n) = zero
+                        enddo
+                     enddo
+                  enddo
+               endif
             else if ( n==nTrac2 .and. do_trac2==1 ) then
                ! Other scalar
                if (probtype == 20) then 
@@ -474,6 +521,17 @@ contains
                            else
                               force(i,j,k,n) = zero
                            endif
+                        enddo
+                     enddo
+                  enddo
+               else if (probtype.eq.31) then
+                  ! MRBC, radiative cooling
+                  Lz = domnhi(3)-domnlo(3)
+                  do k = f_lo(3), f_hi(3)
+                     z = xlo(3) + hz*(float(k-f_lo(3)) + half)
+                     do j = f_lo(2), f_hi(2)
+                        do i = f_lo(1), f_hi(1)
+                           force(i,j,k,n) = - half * rb_qrad * sin(Pi*z/Lz)
                         enddo
                      enddo
                   enddo

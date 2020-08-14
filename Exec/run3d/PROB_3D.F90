@@ -3618,12 +3618,6 @@ contains
 
 
       end function normal_random_variable
-!                        force(i,j,k,nXvel) = scal(i,j,k,nRhoScal)*rb_omega*vel(i,j,k,nYvel)
-!                        force(i,j,k,nYvel) = -scal(i,j,k,nRhoScal)*rb_omega*vel(i,j,k,nXvel)
-!                        force(i,j,k,nZvel) = max(scal(i,j,k,nTrac2Scal), scal(i,j,k,nTracScal) - rb_bv*z)
-
-!                           force(i,j,k,n) = - rb_qrad * sin(Pi*z/Lz)
-!                           force(i,j,k,n) = - half * rb_qrad * sin(Pi*z/Lz)
 !c     ::: -----------------------------------------------------------
 !c     ::: This routine will tag high error cells based on the 
 !c     ::: magnitude or gradient of the density
