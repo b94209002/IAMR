@@ -6,6 +6,7 @@ using namespace amrex;
 #ifdef AMREX_USE_EB
 #include <AMReX_EB2.H>
 #include <AMReX_EB2_IF.H>
+#include <NSB_K.H>
 
 #include <AMReX_ParmParse.H>
 #include <AMReX_Geometry.H>
@@ -121,9 +122,10 @@ initialize_EB2 (const Geometry& geom, const int required_coarsening_level,
     auto pr = EB2::translate(EB2::lathe(polys), {lenx*0.5, leny*0.5, 0.});
 
     auto gshop = EB2::makeShop(pr);
-    EB2::Build(gshop, geom, max_coarsening_level, max_coarsening_level);
-  } else if (geom_type == "Piston-Cylinder") {
-
+    EB2::Build(gshop, geom, required_coarsening_level, max_coarsening_level);
+  }
+  else if (geom_type == "Piston-Cylinder")
+  {
     EB2::SplineIF Piston;
 
     std::vector<amrex::RealVect> splpts;
@@ -156,8 +158,10 @@ initialize_EB2 (const Geometry& geom, const int required_coarsening_level,
     //auto PistonCylinder = EB2::makeIntersection(revolvePiston, cylinder);
     auto PistonCylinder = EB2::makeUnion(revolvePiston, cylinder);
     auto gshop = EB2::makeShop(PistonCylinder);
-    EB2::Build(gshop, geom, max_coarsening_level, max_coarsening_level);
-  } else if (geom_type == "Line-Piston-Cylinder") {
+    EB2::Build(gshop, geom, required_coarsening_level, max_coarsening_level);
+  }
+  else if (geom_type == "Line-Piston-Cylinder")
+  {
     EB2::SplineIF Piston;
     std::vector<amrex::RealVect> lnpts;
     amrex::RealVect p;
@@ -204,16 +208,13 @@ initialize_EB2 (const Geometry& geom, const int required_coarsening_level,
     auto revolvePiston  = EB2::lathe(Piston);
     auto PistonCylinder = EB2::makeUnion(revolvePiston, cylinder);
     auto gshop = EB2::makeShop(PistonCylinder);
-    EB2::Build(gshop, geom, max_coarsening_level, max_coarsening_level);
+    EB2::Build(gshop, geom, required_coarsening_level, max_coarsening_level);
   }
-  else {
+  else
 #endif
-
-    EB2::Build(geom, required_coarsening_level, max_coarsening_level, 4);
-
-#if BL_SPACEDIM > 2
+  {
+    EB2::Build(geom, required_coarsening_level, max_coarsening_level);
   }
-#endif
 }
 
 void
@@ -247,10 +248,14 @@ NavierStokesBase::initialize_eb2_structs() {
   
   auto const& flags = ebfactory.getMultiEBCellFlagFab();
 
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
   for (MFIter mfi(*volfrac, false); mfi.isValid(); ++mfi)
   {
     BaseFab<int>& mfab = ebmask[mfi];
     const Box tbox = mfi.growntilebox();
+    const Box bx = mfi.tilebox();
     const FArrayBox& vfab = (*volfrac)[mfi];
     const EBCellFlagFab& flagfab = flags[mfi];
     
@@ -258,10 +263,20 @@ NavierStokesBase::initialize_eb2_structs() {
     int iLocal = mfi.LocalIndex();
 
     if (typ == FabType::regular) {
-      mfab.setVal<RunOn::Host>(1);
+      const auto& mask = ebmask.array(mfi);
+      amrex::ParallelFor(bx, [mask]
+      AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+          mask(i,j,k) = 1;
+      });
     }
     else if (typ == FabType::covered) {
-      mfab.setVal<RunOn::Host>(-1);
+      const auto& mask = ebmask.array(mfi);
+      amrex::ParallelFor(bx, [mask]
+      AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+      {
+          mask(i,j,k) = -1;
+      });
     }
     else if (typ == FabType::singlevalued) {
       int Ncut = 0;
@@ -362,19 +377,23 @@ NavierStokesBase::set_body_state(MultiFab& S)
   int nc = S.nComp();
   int covered_val = -1;
 
+  // Need a GPU copy of body_state that's not a static attribute of the NSB class
+  AsyncArray<amrex::Real> body_state_lcl(body_state.data(),nc);
+
 #ifdef _OPENMP
-#pragma omp parallel
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-  for (MFIter mfi(S,true); mfi.isValid(); ++mfi)
+  for (MFIter mfi(S,TilingIfNotGPU()); mfi.isValid(); ++mfi)
   {
-    const Box& vbox = mfi.validbox();
-    fort_set_body_state(vbox.loVect(), vbox.hiVect(),
-                      BL_TO_FORTRAN_ANYD(S[mfi]),
-                      BL_TO_FORTRAN_ANYD(ebmask[mfi]),
-                      &(body_state[0]),&nc,&covered_val);
+    const Box& bx = mfi.tilebox();
+    auto const& state = S.array(mfi);
+    auto const& mask = ebmask.array(mfi);
+    Real* state_lcl = body_state_lcl.data();
+    amrex::ParallelFor(bx, [state,mask,nc,covered_val,state_lcl]
+    AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        set_body_state_k(i,j,k,nc,state_lcl,covered_val,mask,state);
+    });
   }
 }
-
-
-
 #endif
