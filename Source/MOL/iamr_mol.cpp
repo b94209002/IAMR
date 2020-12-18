@@ -1,6 +1,5 @@
 #include <iamr_mol.H>
 #include <iamr_constants.H>
-#include <NS_util.H>
 #ifdef AMREX_USE_EB
 #include <AMReX_MultiCutFab.H>
 #endif
@@ -24,6 +23,7 @@ MOL::ComputeAofs ( MultiFab& aofs, int aofs_comp, int ncomp,
                            MultiFab& zfluxes),
                    int fluxes_comp,
                    Vector<BCRec> const& bcs,
+		          BCRec  const* d_bcrec_ptr,
                    Geometry const&  geom )
 {
     BL_PROFILE("MOL::ComputeAofs()");
@@ -173,7 +173,7 @@ MOL::ComputeAofs ( MultiFab& aofs, int aofs_comp, int ncomp,
 		    Array4<Real const> const q = state.const_array(mfi,state_comp);
 
 		    EB_ComputeEdgeState( gbx, D_DECL(xed,yed,zed), q, ncomp,
-                                         D_DECL(u,v,w), domain, bcs,
+                                         D_DECL(u,v,w), domain, bcs, d_bcrec_ptr,
                                          D_DECL(fcx,fcy,fcz), ccc, flag );
                 }
 
@@ -219,7 +219,7 @@ MOL::ComputeAofs ( MultiFab& aofs, int aofs_comp, int ncomp,
                 {
                     Array4<Real const> const q = state.const_array(mfi,state_comp);
                     ComputeEdgeState( gbx, D_DECL( xed, yed, zed ), q, ncomp,
-                                      D_DECL( u, v, w ), domain, bcs );
+                                      D_DECL( u, v, w ), domain, bcs, d_bcrec_ptr);
 
                 }
 
@@ -262,6 +262,7 @@ MOL::ComputeSyncAofs ( MultiFab& aofs, int aofs_comp, int ncomp,
                                MultiFab& zfluxes),
                        int fluxes_comp,
                        Vector<BCRec> const& bcs,
+		              BCRec  const* d_bcrec_ptr,
                        Geometry const&  geom )
 {
     BL_PROFILE("MOL::ComputeSyncAofs()");
@@ -401,7 +402,7 @@ MOL::ComputeSyncAofs ( MultiFab& aofs, int aofs_comp, int ncomp,
 			    Array4<Real const> w = wmac.const_array(mfi););
 
                     EB_ComputeEdgeState( gbx, D_DECL(xed,yed,zed), q, ncomp,
-                                         D_DECL(u,v,w), domain, bcs,
+                                         D_DECL(u,v,w), domain, bcs, d_bcrec_ptr,
                                          D_DECL(fcx,fcy,fcz), ccc, flag );
                 }
 
@@ -460,7 +461,7 @@ MOL::ComputeSyncAofs ( MultiFab& aofs, int aofs_comp, int ncomp,
 			    Array4<Real const> w = wmac.const_array(mfi););
 
                     ComputeEdgeState( bx, D_DECL( xed, yed, zed ), q, ncomp,
-                                      D_DECL( u, v, w ), domain, bcs );
+                                      D_DECL( u, v, w ), domain, bcs, d_bcrec_ptr);
 
                 }
 

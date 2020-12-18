@@ -107,8 +107,6 @@ public:
                         int             crse_iteration,
                         int             crse_dt_ratio,
                         const amrex::Geometry& crse_geom,
-                        bool		pressure_time_is_interval,
-                        bool		first_crse_step_after_initial_iters,
                         amrex::Real		 cur_crse_pres_time,
                         amrex::Real		prev_crse_pres_time,
                         amrex::Real		 cur_fine_pres_time,
@@ -243,8 +241,6 @@ public:
                                    amrex::MultiFab*    Sig_in,
                                    int          have_divu,
                                    amrex::Real         gravity);
-
-protected:
 
     void putDown(const amrex::Vector<amrex::MultiFab*>& phi, amrex::FArrayBox* phi_fine_strip,
 		 int c_lev, int f_lev, const amrex::Orientation* outFaces,

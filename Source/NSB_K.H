@@ -5,22 +5,6 @@
 #include <AMReX_FArrayBox.H>
 #include <cmath>
 
-AMREX_GPU_HOST_DEVICE
-inline
-void
-edg2cen_average(int i, int j, int k,
-                D_DECL(amrex::Array4<const amrex::Real> const& efab_x,
-                       amrex::Array4<const amrex::Real> const& efab_y,
-                       amrex::Array4<const amrex::Real> const& efab_z),
-                amrex::Array4<      amrex::Real> const& cfab) noexcept
-{
-   using namespace amrex::literals;
-
-   D_TERM(cfab(i,j,k,0) = 0.5_rt * ( efab_x(i,j,k) + efab_x(i+1,j,k) );,
-          cfab(i,j,k,1) = 0.5_rt * ( efab_y(i,j,k) + efab_y(i,j+1,k) );,
-          cfab(i,j,k,2) = 0.5_rt * ( efab_z(i,j,k) + efab_z(i,j,k+1) ););
-
-}
 
 AMREX_GPU_HOST_DEVICE
 inline
@@ -40,5 +24,79 @@ set_body_state_k(int i, int j, int k,
       }
    }
 
+}
+
+AMREX_GPU_HOST_DEVICE
+inline
+void
+calc_gradp(int i, int j, int k,
+           amrex::Real                                  const space_scale,
+           amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const dxinv,
+           amrex::Array4<const amrex::Real>             const& p,
+           amrex::Array4<amrex::Real>                   const& gp) noexcept
+{
+   gp(i,j,k,0) = space_scale * dxinv[0] * ( AMREX_D_TERM(  p(i+1,j  ,k  )-p(i  ,j  ,k  ),
+                                                         + p(i+1,j+1,k  )-p(i  ,j+1,k  ),
+                                                         + p(i+1,j  ,k+1)-p(i  ,j  ,k+1)
+                                                         + p(i+1,j+1,k+1)-p(i  ,j+1,k+1)));
+   gp(i,j,k,1) = space_scale * dxinv[1] * ( AMREX_D_TERM(  p(i  ,j+1,k  )-p(i  ,j  ,k  ),
+                                                         + p(i+1,j+1,k  )-p(i+1,j  ,k  ),
+                                                         + p(i  ,j+1,k+1)-p(i  ,j  ,k+1)
+                                                         + p(i+1,j+1,k+1)-p(i+1,j  ,k+1)));
+#if ( AMREX_SPACEDIM == 3 )
+   gp(i,j,k,2) = space_scale * dxinv[2] *             (  p(i  ,j  ,k+1)-p(i  ,j  ,k  )
+                                                       + p(i+1,j  ,k+1)-p(i+1,j  ,k  )
+                                                       + p(i  ,j+1,k+1)-p(i  ,j+1,k  )
+                                                       + p(i+1,j+1,k+1)-p(i+1,j+1,k  ));
+#endif
+}
+//
+// Do linear in dir, pc transverse to dir, leave alone the fine values
+// lining up with coarse edges--assume these have been set to hold the
+// values you want to interpolate to the rest.
+//
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE void
+face_interp_x (int i, int j, int k, int n, amrex::Array4<amrex::Real> const& fine,
+	       amrex::GpuArray<int,AMREX_SPACEDIM>   const& ratio) noexcept
+{
+    int rmod = i%ratio[0];
+
+    if ( rmod != 0 )
+    {
+      int ii = amrex::coarsen(i,ratio[0]);
+      amrex::Real const w = static_cast<amrex::Real>(i-ii*ratio[0]) * (amrex::Real(1.)/ratio[0]);
+      rmod = std::abs(rmod);
+      fine(i,j,k,n) = (amrex::Real(1.)-w) * fine(i-rmod,j,k,n) + w * fine(i+(ratio[0]-rmod),j,k,n);
+    }
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE void
+face_interp_y (int i, int j, int k, int n, amrex::Array4<amrex::Real> const& fine,
+	       amrex::GpuArray<int,AMREX_SPACEDIM>   const& ratio) noexcept
+{
+    int rmod = j%ratio[1];
+
+    if ( rmod != 0 )
+    {
+      int jj = amrex::coarsen(j,ratio[1]);
+      amrex::Real const w = static_cast<amrex::Real>(j-jj*ratio[1]) * (amrex::Real(1.)/ratio[1]);
+      rmod = std::abs(rmod);
+      fine(i,j,k,n) = (amrex::Real(1.)-w) * fine(i,j-rmod,k,n) + w * fine(i,j+(ratio[1]-rmod),k,n);
+    }
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE void
+face_interp_z (int i, int j, int k, int n, amrex::Array4<amrex::Real> const& fine,
+	       amrex::GpuArray<int,AMREX_SPACEDIM>   const& ratio) noexcept
+{
+    int rmod = k%ratio[2];
+
+    if ( rmod != 0 )
+    {
+      int kk = amrex::coarsen(k,ratio[2]);
+      amrex::Real const w = static_cast<amrex::Real>(k-kk*ratio[2]) * (amrex::Real(1.)/ratio[2]);
+      rmod = std::abs(rmod);
+      fine(i,j,k,n) = (amrex::Real(1.)-w) * fine(i,j,k-rmod,n) + w * fine(i,j,k+(ratio[2]-rmod),n);
+    }
 }
 #endif

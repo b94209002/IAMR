@@ -1,6 +1,4 @@
-
 #include <NavierStokesBase.H>
-#include <NAVIERSTOKESBASE_F.H>
 using namespace amrex;
 
 #ifdef AMREX_USE_EB
@@ -167,7 +165,7 @@ initialize_EB2 (const Geometry& geom, const int required_coarsening_level,
     amrex::RealVect p;
 
     Real scaleFact;
-    scaleFact = 0.25;
+    scaleFact = 0.0025; //Because PeleLM is in MKS
 
     p = amrex::RealVect(D_DECL(49.0*0.1*scaleFact, 7.8583*0.1*scaleFact, 0.0));
     lnpts.push_back(p);
@@ -209,6 +207,166 @@ initialize_EB2 (const Geometry& geom, const int required_coarsening_level,
     auto PistonCylinder = EB2::makeUnion(revolvePiston, cylinder);
     auto gshop = EB2::makeShop(PistonCylinder);
     EB2::Build(gshop, geom, required_coarsening_level, max_coarsening_level);
+  }
+  else if (geom_type == "Inflow-Pipe")
+  {
+    
+    // Initialise parameters
+    int direction1 = 2;
+    int direction2 = 2;
+    Real radius1 = 0.018;
+    Real radius2 = 0.007;
+    Real height1 = 0.01;
+    Real height2 = 0.01;
+    Vector<Real> centervec1(3);
+    Vector<Real> centervec2(3);
+
+    // Get information from inputs file.
+    ParmParse pp("pipe");
+
+    pp.query("direction1", direction1);
+    pp.query("direction2", direction2);
+    pp.query("radius1", radius1);
+    pp.query("radius2", radius2);
+    pp.query("height1", height1);
+    pp.query("height2", height2);
+    pp.getarr("center1", centervec1, 0, 3);
+    pp.getarr("center2", centervec2, 0, 3);
+    Array<Real, 3> center1 = {centervec1[0], centervec1[1], centervec1[2]};
+    Array<Real, 3> center2 = {centervec2[0], centervec2[1], centervec2[2]};
+
+    // Compute distance between cylinder centres
+    Real offset = 0.0;
+    for(int i = 0; i < 3; i++)
+        offset += pow(center1[i] - center2[i], 2);
+    offset = sqrt(offset);
+
+    // Print info about cylinders
+    amrex::Print() << " CYLINDER 1" << std::endl;
+    amrex::Print() << " Direction:       " << direction1 << std::endl;
+    amrex::Print() << " Radius:    " << radius1 << std::endl;
+    amrex::Print() << " Center:    "
+                   << center1[0] << ", " << center1[1] << ", " << center1[2] << std::endl;
+
+    amrex::Print() << " CYLINDER 2" << std::endl;
+    amrex::Print() << " Direction:       " << direction2 << std::endl;
+    amrex::Print() << " Radius:    " << radius2 << std::endl;
+    amrex::Print() << " Center:    "
+                   << center2[0] << ", " << center2[1] << ", " << center2[2] << std::endl;
+
+    amrex::Print() << "\n Offset:          " << offset << std::endl;
+
+        // Build the implicit function as a union of two cylinders
+    EB2::CylinderIF cyl1(radius1, height1, direction1, center1, false);
+    EB2::CylinderIF cyl2(radius2, height2, direction2, center2, false);
+
+    auto twocylinders = EB2::makeDifference(cyl1, cyl2);
+
+    // Generate GeometryShop
+    auto gshop = EB2::makeShop(twocylinders);
+
+    // Build index space
+    int max_level_here = 0;
+    int max_coarsening_level = 100;
+    EB2::Build(gshop, geom, required_coarsening_level, max_coarsening_level);
+
+  }
+  else if (geom_type == "Mixing-Pipe")
+  {
+
+    // Initialise parameters
+    int direction = 1;
+    Real radius = 0.018;
+    Real height = 0.01;
+    bool internal_flow = true; 
+    Vector<Real> centervec(3);
+
+    // Get information from inputs file.
+    ParmParse pp("pipe");
+
+    pp.query("direction", direction);
+    pp.query("radius", radius);
+    pp.query("height", height);
+    pp.getarr("center", centervec, 0, 3);
+    pp.query("internal_flow", internal_flow);
+    Array<Real, 3> center = {centervec[0], centervec[1], centervec[2]};
+
+    // Print info about cylinders
+    amrex::Print() << " CYLINDER " << std::endl;
+    amrex::Print() << " Direction:       " << direction << std::endl;
+    amrex::Print() << " Radius:    " << radius << std::endl;
+    amrex::Print() << " Center:    "
+                   << center[0] << ", " << center[1] << ", " << center[2] << std::endl;
+
+
+
+        // Build the implicit function as a union of two cylinders
+    EB2::CylinderIF cyl(radius, height, direction, center, internal_flow);
+
+    // Generate GeometryShop
+    auto gshop = EB2::makeShop(cyl);
+    // Build index space
+    int max_level_here = 0;
+    int max_coarsening_level = 100;
+    EB2::Build(gshop, geom, required_coarsening_level, max_coarsening_level);
+
+  }
+  else if (geom_type == "Square-Grid")
+  {
+
+    // Initialise parameters
+    Real dim_L0 = 0.08;
+    Real ratio_t0_L0_cross = 0.11;
+    Real ratio_t0_stream_thickness = 1.0;
+    bool internal_flow = true;
+
+    Vector<Real> centervec(3);
+
+    // Get information from inputs file.
+    ParmParse pp("square_grid");
+
+    pp.query("dim_L0", dim_L0);
+    pp.query("ratio_t0_L0_cross", ratio_t0_L0_cross);
+    pp.query("ratio_t0_stream_thickness", ratio_t0_stream_thickness);
+    Array<Real, 3> center = {centervec[0], centervec[1], centervec[2]};
+
+
+    Real cross_dim_t0 = ratio_t0_L0_cross * dim_L0;
+    Real pos_big_square = 0.5 * (dim_L0 + cross_dim_t0);
+    Real pos_small_square = 0.5 * (dim_L0 - cross_dim_t0);
+    Real stream_length = cross_dim_t0 * ratio_t0_stream_thickness;
+
+    Array<Real, 3> big_square_lo = {0.0, -pos_big_square,-pos_big_square};
+    Array<Real, 3> big_square_hi = {stream_length,  pos_big_square, pos_big_square};
+
+    Array<Real, 3> small_square_lo = {0.0, -pos_small_square,-pos_small_square};
+    Array<Real, 3> small_square_hi = {stream_length,  pos_small_square, pos_small_square};
+
+
+    // Print info about the square grid parameters
+    amrex::Print() << " SQUARE GRID PARAMETERS " << std::endl;
+    amrex::Print() << " dim_L0:       " << dim_L0 << std::endl;
+    amrex::Print() << " computed cross section dim_t0:       " << cross_dim_t0 << std::endl;
+    amrex::Print() << " computed streamwise section length:       " << stream_length << std::endl;
+    amrex::Print() << " ratio_t0_L0_cross:    " << ratio_t0_L0_cross << std::endl;
+    amrex::Print() << " ratio_t0_stream_thickness:    " << ratio_t0_stream_thickness << std::endl;
+    amrex::Print() << " pos_big_square:    " << pos_big_square << std::endl;
+    amrex::Print() << " pos_small_square:    " << pos_small_square << std::endl;
+
+
+        // Build the implicit function as a union of two cylinders
+    EB2::BoxIF big_square(big_square_lo, big_square_hi,   0);
+    EB2::BoxIF small_square(small_square_lo, small_square_hi, 0);
+    auto square_grid = EB2::makeDifference(big_square, small_square);
+
+
+    // Generate GeometryShop
+    auto gshop = EB2::makeShop(square_grid);
+    // Build index space
+    int max_level_here = 0;
+    int max_coarsening_level = 100;
+    EB2::Build(gshop, geom, required_coarsening_level, max_coarsening_level);
+
   }
   else
 #endif

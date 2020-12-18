@@ -8,6 +8,7 @@ Bdirs += Source/TurbInflow
 Bdirs += Source/Src_nd
 Bdirs += Source/Src_$(DIM)d
 Bdirs += Source/MOL
+Bdirs += Source/Godunov
 
 Bpack	+= $(foreach dir, $(Bdirs), $(TOP)/$(dir)/Make.package)
 Blocs	+= $(foreach dir, $(Bdirs), $(TOP)/$(dir))
@@ -20,8 +21,8 @@ INCLUDE_LOCATIONS += $(Blocs)
 #These are the directories in BoxLib
 
 Pdirs   := Base AmrCore Amr Boundary
-Pdirs   += LinearSolvers/C_CellMG  LinearSolvers/C_TensorMG  \
-           LinearSolvers/MLMG LinearSolvers/Projections
+Pdirs   += LinearSolvers/MLMG LinearSolvers/Projections
+           
 
 ifeq ($(USE_PARTICLES),TRUE)
   Pdirs += Particle

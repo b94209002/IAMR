@@ -12,7 +12,6 @@
 #include <Diffusion.H>
 #include <AMReX_ErrorList.H>
 #include <AMReX_FluxRegister.H>
-#include <Godunov.H>
 #include <MacProj.H>
 #include <Projection.H>
 #include <SyncRegister.H>
@@ -49,7 +48,6 @@ enum StateNames  { Xvel=0, Yvel, Zvel, Density};
 enum PressureNames { Pressure=0 };
 enum DivuNames { Divu=0};
 enum DsDtNames { Dsdt=0};
-enum DpDtNames { Dpdt=0};
 
 class NavierStokesBase
     :
@@ -187,6 +185,14 @@ public:
 
     amrex::Vector<amrex::BCRec> fetchBCArray (int State_Type, int scomp, int ncomp);
 
+    amrex::Vector<amrex::BCRec> const& get_bcrec_velocity () const noexcept { return m_bcrec_velocity; }
+    amrex::Vector<amrex::BCRec> const& get_bcrec_scalars () const noexcept { return m_bcrec_scalars; }
+
+    amrex::BCRec const* get_bcrec_velocity_d_ptr () const noexcept {
+        return m_bcrec_velocity_d.dataPtr(); }
+    amrex::BCRec const* get_bcrec_scalars_d_ptr () const noexcept {
+        return m_bcrec_scalars_d.dataPtr(); }
+
     //
     // Select appropriate AMReX average_down() based on EB/non-EB and dimensionality
     // for use in derived classes and Projection sync fns and initial vel proj
@@ -207,6 +213,12 @@ public:
 
     static int DoTrac2();
 
+    static bool GodunovUsePPM () {return godunov_use_ppm;};
+    static bool GodunovUseForcesInTrans () {return godunov_use_forces_in_trans;};
+    static int  GodunovHypgrow () {return godunov_hyp_grow;};
+
+    //////////////////////////////////////////////////////////////////
+  
     NavierStokesBase ();
 
     NavierStokesBase (amrex::Amr&            papa,
@@ -216,9 +228,9 @@ public:
                       const amrex::DistributionMapping& dm,
 		      amrex::Real            time);
 
-    ////////////////////////////////////////////////////////////////////////////
-    //    NavierStokesBase protected functions                                //
-    ////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////
+    //    NavierStokesBase functions                                //
+    //////////////////////////////////////////////////////////////////
 
     void advance_cleanup (int iteration,int ncycle);
 
@@ -227,14 +239,13 @@ public:
     // Get the forcing term.
     //
     virtual void getForce (amrex::FArrayBox&       force,
-                           const amrex::Box&      bx,
-                           int              ngrow,
-                           int              strt_comp,
-                           int              num_comp,
+                           const amrex::Box&       bx,
+                           int                     strt_comp,
+                           int                     num_comp,
                            const amrex::Real       time,
                            const amrex::FArrayBox& Vel,
                            const amrex::FArrayBox& Scal,
-                           int              scalScomp);
+                           int                     scalScomp);
     //
     amrex::FluxRegister& getAdvFluxReg () {
         BL_ASSERT(advflux_reg);
@@ -348,7 +359,7 @@ public:
     void sync_cleanup (amrex::MultiFab*& DeltaSsync);
     //
     // Grow by nGrow and fillpatch the MAC-projected velocities.
-    // 
+    //
     void create_umac_grown (int nGrow);
     //
     // Advect velocities.
@@ -360,7 +371,7 @@ public:
     void velocity_update (amrex::Real dt);
 
     void velocity_advection_update (amrex::Real dt);
-    
+
     void LES_setDomainBC (std::array<amrex::LinOpBCType,AMREX_SPACEDIM>& mlmg_lobc,
                       std::array<amrex::LinOpBCType,AMREX_SPACEDIM>& mlmg_hibc,
                       int src_comp);
@@ -384,9 +395,9 @@ public:
 #endif
 #endif
 
-    ////////////////////////////////////////////////////////////////////////////
-    //    NavierStokesBase protected virtual functions                        //
-    ////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////
+    //    NavierStokesBase virtual functions                        //
+    //////////////////////////////////////////////////////////////////
 
     virtual void advance_setup (amrex::Real time,
 				amrex::Real dt,
@@ -398,9 +409,6 @@ public:
     virtual void calc_divu (amrex::Real      time,
 			    amrex::Real      dt,
 			    amrex::MultiFab& fab) = 0;
-    virtual void calc_dsdt (amrex::Real      time,
-			    amrex::Real      dt,
-			    amrex::MultiFab& dsdt) = 0;
     //
     // Calculate nonuniform viscosity and diffusivity
     //
@@ -448,7 +456,7 @@ public:
     virtual void velocity_diffusion_update (amrex::Real dt) = 0;
 
     ////////////////////////////////////////////////////////////////////////////
-    //    NavierStokesBase protected static functions                         //
+    //    NavierStokesBase static functions                                   //
     ////////////////////////////////////////////////////////////////////////////
 
     static void variableCleanUp (); // Cleanup data descriptors at end of run.
@@ -487,14 +495,12 @@ public:
     void printMaxValues (bool new_data = true);
 
     ////////////////////////////////////////////////////////////////////////////
-    //    NavierStokesBase protected embedded boundary functions              //
-    ////////////////////////////////////////////////////////////////////////////
 
     void buildMetrics (); // 1-D metric arrays for RZ
     //
-    // Compute dpdt
-    //
-    void calcDpdt();
+    void calc_dsdt (amrex::Real      time,
+		    amrex::Real      dt,
+		    amrex::MultiFab& dsdt);
     //
     NavierStokesBase& getLevel (int lev) {
 	return dynamic_cast<NavierStokesBase&> ( parent->getLevel(lev) );
@@ -529,13 +535,18 @@ public:
     void init_additional_state_types ();
     //
     amrex::Real initialTimeStep ();
+
     //
-    void SetGodunov () {
+    // Correct a conservatively-advected scalar for under-over shoots.
+    //
+    void ConservativeScalMinMax ( amrex::MultiFab& Snew, const int snew_comp, const int new_density_comp,
+                                  amrex::MultiFab const& Sold, const int sold_comp, const int old_density_comp );
 
-    if (godunov == 0) godunov = new Godunov();
-
-    };
-
+    //
+    // Correct a convectively-advected scalar for under-over shoots.
+    //
+    void ConvectiveScalMinMax ( amrex::MultiFab& Snew, const int snew_comp,
+                                amrex::MultiFab const& Sold, const int sold_comp );
 #ifdef AMREX_USE_EB
 
     void init_eb (const amrex::Geometry& level_geom, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
@@ -580,11 +591,20 @@ public:
     // MAC edge velocities.
     //
     amrex::MultiFab* u_mac;
+    int  umac_n_grow;
     //
     // Advective update terms.
     //
     amrex::MultiFab* aofs;
-
+    //
+    // BC info for advection
+    //
+    amrex::Vector<amrex::BCRec> m_bcrec_velocity;
+    amrex::Vector<amrex::BCRec> m_bcrec_scalars;
+    // NOTE that DeviceVector reverts to amrex::Vector if !AMREX_USE_GPU
+    amrex::Gpu::DeviceVector<amrex::BCRec> m_bcrec_velocity_d;
+    amrex::Gpu::DeviceVector<amrex::BCRec> m_bcrec_scalars_d;
+  
     Diffusion* diffusion;
     //
     // arrays for variable viscosity and diffusivity
@@ -643,13 +663,8 @@ public:
     //
     amrex::BoxArray old_intersect_new;
     //
-    // Controls for particle subcycling
-    //
-    int  umac_n_grow;
-    //
     // Static objects.
     //
-    static Godunov*    godunov;
     static amrex::ErrorList   err_list;
     static amrex::BCRec       phys_bc;
     static Projection* projector;
@@ -672,7 +687,7 @@ public:
     static int  sum_interval;         // number of timesteps for conservation stats
     static int  turb_interval;        // number of timesteps for turbulence stats
     static int  jet_interval;         // number of timesteps for turbulence stats for the round jet
-    static int  jet_interval_split;  // cell divisor for each dimension in numerical integration
+    static int  jet_interval_split;   // cell divisor for each dimension in numerical integration
     //
     // Internal parameters for options.
     //
@@ -734,12 +749,8 @@ public:
     static int  do_LES;             // To activate LES modelling
     static int  getLESVerbose;      // Does exactly what it says on the tin
     static std::string LES_model;   // To choose a LES model
-    static amrex::Real smago_Cs_cst;       // A parameter for the Smagorinsky model, usually set to 0.18    
-    static amrex::Real sigma_Cs_cst;       // A parameter for the Sigma model, usually set to 1.5 
-    //
-    // Member when pressure defined at points in time rather than interval
-    //
-    static int  Dpdt_Type;
+    static amrex::Real smago_Cs_cst;       // A parameter for the Smagorinsky model, usually set to 0.18
+    static amrex::Real sigma_Cs_cst;       // A parameter for the Sigma model, usually set to 1.5
     //
     // Members for non-zero divu.
     //
@@ -778,6 +789,18 @@ public:
     static const int PRESS_GROW = 1;
     static const int DIVU_GROW  = 1;
     static const int DSDT_GROW  = 1;
+
+    //
+    // Controls Godunov solver
+    //
+    static bool godunov_use_ppm;
+    static bool godunov_use_forces_in_trans;
+#ifdef AMREX_USE_EB
+    static const int  godunov_hyp_grow = 4;
+#else
+    static const int  godunov_hyp_grow = 3;
+#endif
+
 };
 
 #endif

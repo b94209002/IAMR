@@ -2,9 +2,8 @@
 #include <AMReX_BC_TYPES.H>
 #include <AMReX_FluxRegister.H>
 #include <SyncRegister.H>
-//#include <NAVIERSTOKES_F.H>
-#include <SYNCREG_F.H>
 #include <AMReX_BLProfiler.H>
+#include <NSB_K.H>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -290,7 +289,7 @@ SyncRegister::CrseInit (MultiFab& Sync_resid_crse, const Geometry& crse_geom, Re
 {
     BL_PROFILE("SyncRegister::CrseInit()");
 
-    setVal(0);
+    setVal(0.0);
 
     Sync_resid_crse.mult(mult);
 
@@ -301,14 +300,14 @@ SyncRegister::CrseInit (MultiFab& Sync_resid_crse, const Geometry& crse_geom, Re
 }
 
 void
-SyncRegister::CompAdd (MultiFab& Sync_resid_fine, 
-                       const Geometry& fine_geom, const Geometry& crse_geom, 
+SyncRegister::CompAdd (MultiFab& Sync_resid_fine,
+                       const Geometry& fine_geom, const Geometry& crse_geom,
                        const BoxArray& Pgrids, Real mult)
 {
     BL_PROFILE("SyncRegister::CompAdd()");
 
 #ifdef _OPENMP
-#pragma omp parallel
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     {
       Vector<IntVect> pshifts(27);
@@ -316,7 +315,6 @@ SyncRegister::CompAdd (MultiFab& Sync_resid_fine,
 
       for (MFIter mfi(Sync_resid_fine); mfi.isValid(); ++mfi)
       {
-         //const Box& sync_box = mfi.tilebox();
          const Box& sync_box = mfi.validbox();
 
          Pgrids.intersections(sync_box,isects);
@@ -364,47 +362,143 @@ SyncRegister::FineAdd (MultiFab& Sync_resid_fine, const Geometry& crse_geom, Rea
     MultiFab Sync_resid_crse(cba, Sync_resid_fine.DistributionMap(), 1, 0);
     Sync_resid_crse.setVal(0.0);
 
+    constexpr Real twoThirds   = 2._rt / 3._rt;
+    constexpr Real threeHalves = 3._rt / 2._rt;
+
 #ifdef _OPENMP
-#pragma omp parallel
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(Sync_resid_fine,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        FArrayBox& finefab = Sync_resid_fine[mfi];
+        auto const& finefab_a = finefab.array();
+        const Box& finebox  = mfi.validbox();
+        GpuArray<int,3> flo = finebox.loVect3d();
+        GpuArray<int,3> fhi = finebox.hiVect3d();
+        ParallelFor(mfi.tilebox(), [finefab_a,flo,fhi,twoThirds]
+        AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+#if AMREX_SPACEDIM == 2
+            if ((i==flo[0] && j==flo[1]) ||
+                (i==flo[0] && j==fhi[1]) ||
+                (i==fhi[0] && j==flo[1]) ||
+                (i==fhi[0] && j==fhi[1]))
+            {
+                finefab_a(i,j,k) *= 0.5_rt;
+            }
+#elif AMREX_SPACEDIM == 3
+            if ((j==flo[1] && k==flo[2] && i>=flo[0] && i<=fhi[0]) || // 1
+                (i==fhi[0] && k==flo[2] && j>=flo[1] && j<=fhi[1]) || // 2
+                (j==fhi[1] && k==flo[2] && i>=flo[0] && i<=fhi[0]) || // 3
+                (i==flo[0] && k==flo[2] && j>=flo[1] && j<=fhi[1]) || // 4
+                (j==flo[1] && k==fhi[2] && i>=flo[0] && i<=fhi[0]) || // 5
+                (i==fhi[0] && k==fhi[2] && j>=flo[1] && j<=fhi[1]) || // 6
+                (j==fhi[1] && k==fhi[2] && i>=flo[0] && i<=fhi[0]) || // 7
+                (i==flo[0] && k==fhi[2] && j>=flo[1] && j<=fhi[1]) || // 8
+                (i==flo[0] && j==flo[1] && k>=flo[2] && k<=fhi[2]) || // 9
+                (i==fhi[0] && j==flo[1] && k>=flo[2] && k<=fhi[2]) || // 10
+                (i==fhi[0] && j==fhi[1] && k>=flo[2] && k<=fhi[2]) || // 11
+                (i==flo[0] && j==fhi[1] && k>=flo[2] && k<=fhi[2]))   // 12
+            {
+                finefab_a(i,j,k) *= 0.5_rt;
+            }
+            if ((i==flo[0] && j==flo[1] && k==flo[2]) || // 1
+                (i==flo[0] && j==fhi[1] && k==flo[2]) || // 2
+                (i==flo[0] && j==flo[1] && k==fhi[2]) || // 3
+                (i==flo[0] && j==fhi[1] && k==fhi[2]) || // 4
+                (i==fhi[0] && j==flo[1] && k==flo[2]) || // 5
+                (i==fhi[0] && j==fhi[1] && k==flo[2]) || // 6
+                (i==fhi[0] && j==flo[1] && k==fhi[2]) || // 7
+                (i==fhi[0] && j==fhi[1] && k==fhi[2]))   // 8
+            {
+                finefab_a(i,j,k) *= twoThirds;
+            }
+#endif
+        });
+    }
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     {
        FArrayBox cbndfab;
        for (int dir = 0; dir < AMREX_SPACEDIM; dir++)
        { 
-          for (MFIter mfi(Sync_resid_fine); mfi.isValid(); ++mfi)
-          {
+           int dim1 = ( dir != 0 ) ? 0 : 1;
+           int dim2 = ( dir != 0 ) ? ( ( dir == 2 ) ? 1 : 2 ) : 2;
+
+           for (MFIter mfi(Sync_resid_fine,false); mfi.isValid(); ++mfi)
+           {
              FArrayBox& finefab = Sync_resid_fine[mfi];
              FArrayBox& crsefab = Sync_resid_crse[mfi];
-             auto const& crsefab_a = crsefab.array();
 
-             const Box& finebox  = finefab.box();
-             const int* resid_lo = finebox.loVect();
-             const int* resid_hi = finebox.hiVect();
+             auto const& crsefab_a = crsefab.array();
+             auto const& finefab_a = finefab.array();
 
              const Box& crsebox  = crsefab.box();
 
-             Box bndbox = crsebox;
+             Box cbndbox = crsebox;
 
              for (int side=0; side<2; ++side)
              {
                 if (side == 0) {
-                   bndbox.setRange(dir,crsebox.smallEnd(dir),1);
+                   cbndbox.setRange(dir,crsebox.smallEnd(dir),1);
                 } else {
-                   bndbox.setRange(dir,crsebox.bigEnd(dir),1);
+                   cbndbox.setRange(dir,crsebox.bigEnd(dir),1);
                 }
-
-                cbndfab.resize(bndbox, 1);
+                cbndfab.resize(cbndbox, 1);
                 auto const& cbndfab_a = cbndfab.array();
                 Elixir cbndfab_e = cbndfab.elixir();
+                amrex::GpuArray<int,AMREX_SPACEDIM> rratio = {D_DECL(ratio[0],ratio[1],ratio[2])};
 
-                const int* clo = bndbox.loVect();
-                const int* chi = bndbox.hiVect();
-
-                srcrsereg(finefab.dataPtr(),
-                          ARLIM(resid_lo),ARLIM(resid_hi),
-                          cbndfab.dataPtr(),ARLIM(clo),ARLIM(chi),
-                          clo,chi,&dir,ratio.getVect());
-
+#if AMREX_SPACEDIM == 2
+                ParallelFor(cbndbox,  [rratio,cbndfab_a,finefab_a,dir,dim1]
+                AMREX_GPU_DEVICE (int ic, int jc, int kc) noexcept
+                {
+                    cbndfab_a(ic,jc,kc) = 0;
+                    int idxc[3] = {ic, jc, kc};
+                    int idxf[3] = {0};
+                    Real denom = rratio[dir] / (Real)(rratio[0]*rratio[0] * rratio[1]*rratio[1]);
+                    for (int m=0; m<rratio[dim1]; ++m) {
+                        Real coeff = (rratio[dim1] - m) * denom;
+                        if (m==0) coeff *= 0.5_rt;
+                        idxf[dir]  = rratio[dir] *idxc[dir];
+                        idxf[dim1] = rratio[dim1]*idxc[dim1];
+                        int idxf0[3] = {idxf[0], idxf[1], idxf[2]}; idxf0[dim1]+=m;
+                        int idxf1[3] = {idxf[0], idxf[1], idxf[2]}; idxf1[dim1]-=m;
+                        cbndfab_a(ic,jc,kc) += coeff *
+                            ( finefab_a(idxf0[0],idxf0[1],idxf0[2]) +
+                              finefab_a(idxf1[0],idxf1[1],idxf1[2]) );
+                    }
+                });
+#else
+                ParallelFor(cbndbox, [rratio,cbndfab_a,finefab_a,dir,dim1,dim2]
+                AMREX_GPU_DEVICE (int ic, int jc, int kc) noexcept
+                {
+                    cbndfab_a(ic,jc,kc) = 0;
+                    int idxc[3] = {ic, jc, kc};
+                    int idxf[3];
+                    Real denom = rratio[dir] / (Real)(rratio[0]*rratio[0] * rratio[1]*rratio[1] * rratio[2]*rratio[2]);
+                    for (int n=0; n<rratio[dim2]; ++n) {
+                        for (int m=0; m<rratio[dim1]; ++m) {
+                            Real coeff = (rratio[dim1] - m) * (rratio[dim2] - n) * denom;
+                            if (n==0) coeff *= 0.5_rt;
+                            if (m==0) coeff *= 0.5_rt;
+                            idxf[dir]  = rratio[dir] *idxc[dir];
+                            idxf[dim2] = rratio[dim2]*idxc[dim2];
+                            idxf[dim1] = rratio[dim1]*idxc[dim1];
+                            int idxf0[3] = {idxf[0], idxf[1], idxf[2]}; idxf0[dim1]+=m; idxf0[dim2]+=n;
+                            int idxf1[3] = {idxf[0], idxf[1], idxf[2]}; idxf1[dim1]-=m; idxf1[dim2]+=n;
+                            int idxf2[3] = {idxf[0], idxf[1], idxf[2]}; idxf2[dim1]+=m; idxf2[dim2]-=n;
+                            int idxf3[3] = {idxf[0], idxf[1], idxf[2]}; idxf3[dim1]-=m; idxf3[dim2]-=n;
+                            cbndfab_a(ic,jc,kc) += coeff *
+                                ( finefab_a(idxf0[0],idxf0[1],idxf0[2]) +
+                                  finefab_a(idxf1[0],idxf1[1],idxf1[2]) +
+                                  finefab_a(idxf2[0],idxf2[1],idxf2[2]) +
+                                  finefab_a(idxf3[0],idxf3[1],idxf3[2]) );
+                        }
+                    }
+                });
+#endif
                 for (int n = 0; n < AMREX_SPACEDIM; ++n)
                 {
                    if (!crse_geom.isPeriodic(n))
@@ -415,7 +509,7 @@ SyncRegister::FineAdd (MultiFab& Sync_resid_fine, const Geometry& crse_geom, Rea
                        //
                        Box domlo(crse_node_domain);
                        domlo.setRange(n,crse_node_domain.smallEnd(n),1);
-                       domlo &= bndbox;
+                       domlo &= cbndbox;
                        if (domlo.ok()) {
                           amrex::ParallelFor(domlo, [cbndfab_a]
                           AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -426,7 +520,7 @@ SyncRegister::FineAdd (MultiFab& Sync_resid_fine, const Geometry& crse_geom, Rea
 
                       Box domhi(crse_node_domain);
                       domhi.setRange(n,crse_node_domain.bigEnd(n),1);
-                      domhi &= bndbox;
+                      domhi &= cbndbox;
                       if (domhi.ok()) {
                           amrex::ParallelFor(domhi, [cbndfab_a]
                           AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -441,20 +535,70 @@ SyncRegister::FineAdd (MultiFab& Sync_resid_fine, const Geometry& crse_geom, Rea
                 const auto& ovlp = crsefab.box() & cbndfab.box();
                 if (ovlp.ok())
                 {
-                  amrex::ParallelFor(ovlp,
-                  [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                  amrex::ParallelFor(ovlp, [crsefab_a,cbndfab_a]
+                  AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                   {
                      crsefab_a(i,j,k) += cbndfab_a(i,j,k);
                   });
                 }
+             }
+           }
+       }
+    }
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(Sync_resid_fine,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        FArrayBox& finefab = Sync_resid_fine[mfi];
+        auto const& finefab_a = finefab.array();
+        const Box& finebox  = mfi.validbox();
+        GpuArray<int,3> flo = finebox.loVect3d();
+        GpuArray<int,3> fhi = finebox.hiVect3d();
+        ParallelFor(mfi.tilebox(), [finefab_a,flo,fhi,twoThirds]
+        AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+#if AMREX_SPACEDIM == 2
+            if ((i==flo[0] && j==flo[1]) ||
+                (i==flo[0] && j==fhi[1]) ||
+                (i==fhi[0] && j==flo[1]) ||
+                (i==fhi[0] && j==fhi[1]))
+            {
+                finefab_a(i,j,k) *= 2._rt;
             }
-         }
-      }
-   }
-
-   for (OrientationIter face; face; ++face)
-   {
-      bndry[face()].plusFrom(Sync_resid_crse,0,0,0,1,crse_geom.periodicity());
-   }
+#elif AMREX_SPACEDIM == 3
+            if ((j==flo[1] && k==flo[2] && i>=flo[0] && i<=fhi[0]) || // 1
+                (i==fhi[0] && k==flo[2] && j>=flo[1] && j<=fhi[1]) || // 2
+                (j==fhi[1] && k==flo[2] && i>=flo[0] && i<=fhi[0]) || // 3
+                (i==flo[0] && k==flo[2] && j>=flo[1] && j<=fhi[1]) || // 4
+                (j==flo[1] && k==fhi[2] && i>=flo[0] && i<=fhi[0]) || // 5
+                (i==fhi[0] && k==fhi[2] && j>=flo[1] && j<=fhi[1]) || // 6
+                (j==fhi[1] && k==fhi[2] && i>=flo[0] && i<=fhi[0]) || // 7
+                (i==flo[0] && k==fhi[2] && j>=flo[1] && j<=fhi[1]) || // 8
+                (i==flo[0] && j==flo[1] && k>=flo[2] && k<=fhi[2]) || // 9
+                (i==fhi[0] && j==flo[1] && k>=flo[2] && k<=fhi[2]) || // 10
+                (i==fhi[0] && j==fhi[1] && k>=flo[2] && k<=fhi[2]) || // 11
+                (i==flo[0] && j==fhi[1] && k>=flo[2] && k<=fhi[2]))   // 12
+            {
+                finefab_a(i,j,k) *= 2._rt;
+            }
+            if ((i==flo[0] && j==flo[1] && k==flo[2]) || // 1
+                (i==flo[0] && j==fhi[1] && k==flo[2]) || // 2
+                (i==flo[0] && j==flo[1] && k==fhi[2]) || // 3
+                (i==flo[0] && j==fhi[1] && k==fhi[2]) || // 4
+                (i==fhi[0] && j==flo[1] && k==flo[2]) || // 5
+                (i==fhi[0] && j==fhi[1] && k==flo[2]) || // 6
+                (i==fhi[0] && j==flo[1] && k==fhi[2]) || // 7
+                (i==fhi[0] && j==fhi[1] && k==fhi[2]))   // 8
+            {
+                finefab_a(i,j,k) *= threeHalves;
+            }
+#endif
+        });
+    }
+    for (OrientationIter face; face; ++face)
+    {
+        bndry[face()].plusFrom(Sync_resid_crse,0,0,0,1,crse_geom.periodicity());
+    }
 }
 
