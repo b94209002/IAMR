@@ -8,24 +8,22 @@ ifneq ($(SKIP_NS_SPECIFIC_CODE), TRUE)
   # aren't implemented by inherited code.  In particular, LMC has its own
   # implementation of these routines.
   #
-  CEXE_sources += NS_error.cpp NS_setup.cpp NSBld.cpp NavierStokes.cpp
+  CEXE_sources += NS_error.cpp NS_setup.cpp NSBld.cpp NavierStokes.cpp \
+  	       	  NS_bcfill.cpp
   CEXE_headers += NavierStokes.H
 
 endif
 
 CEXE_sources += NS_getForce.cpp
 
-CEXE_sources += ProjOutFlowBC.cpp \
-                MacOutFlowBC.cpp OutFlowBC.cpp
+CEXE_sources += OutFlowBC.cpp
 
 CEXE_sources += FluxBoxes.cpp
 
-CEXE_headers += MacOutFlowBC.H \
-                ProjOutFlowBC.H OutFlowBC.H
+CEXE_headers += OutFlowBC.H
 
 CEXE_headers += SyncRegister.H RegType.H
 
-FEXE_headers += PROJOUTFLOWBC_F.H MACOUTFLOWBC_F.H
 #
 # Disconnect MacOperators for different mass continuity.
 #
@@ -45,11 +43,13 @@ CEXE_sources += NavierStokesBase.cpp Projection.cpp MacProj.cpp Diffusion.cpp
 
 CEXE_sources += NS_LES.cpp
 
+CEXE_sources += NS_derive.cpp NS_average.cpp
+CEXE_headers += NS_derive.H
+
 CEXE_headers += Projection.H MacProj.H Diffusion.H NavierStokesBase.H FluxBoxes.H
 
 FEXE_headers += DERIVE_F.H  PROJECTION_F.H \
-                            DIFFUSION_F.H NAVIERSTOKES_F.H \
-                            SLABSTAT_NS_F.H
+                            NAVIERSTOKES_F.H 
 FEXE_headers += NS_error_F.H
 
 CEXE_sources += MLMG_Mac.cpp NS_util.cpp

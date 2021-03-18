@@ -166,14 +166,6 @@ public:
     void AnelCoeffDiv (int       level,
                        amrex::MultiFab& mf,
                        int       comp);
-
-    //
-    // Helper function for NavierStokes::getGradP().
-    //
-    static void getGradP (amrex::FArrayBox& p_fab,
-                          amrex::FArrayBox& gp,
-                          const amrex::Box& gpbox_to_fill,
-                          const amrex::Real* dx);
     //
     // Read parameters from the input file.
     //
@@ -241,6 +233,13 @@ public:
                                    amrex::MultiFab*    Sig_in,
                                    int          have_divu,
                                    amrex::Real         gravity);
+
+    void computeRhoG (amrex::FArrayBox*         rhoFab,
+                      amrex::FArrayBox*         phiFab,
+                      const amrex::Geometry&    geom,
+                      amrex::Orientation*       outFaces,
+                      int                numOutFlowFaces,
+                      amrex::Real               gravity);
 
     void putDown(const amrex::Vector<amrex::MultiFab*>& phi, amrex::FArrayBox* phi_fine_strip,
 		 int c_lev, int f_lev, const amrex::Orientation* outFaces,
