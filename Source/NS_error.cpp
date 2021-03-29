@@ -131,12 +131,6 @@ NavierStokes::errorEst (TagBoxArray& tags,
     if (errtags[j].Field() != std::string()) {
       mf = derive(errtags[j].Field(), time, errtags[j].NGrow());
     }
-    if (do_liquid_ref) {
-        err_list.add("humidity", 0, ErrorRec::Special, FORT_LWCERROR);
-        amrex::Print() << "Refining on liquid_water" << std::endl;
-        err_list.add("liquid_water", 0, ErrorRec::Special, FORT_LWC2ERROR);
-        amrex::Print() << "Refining on liquid_water" << std::endl;
-    }
     //
     // Create a derive to use ABecLap to compute grad
     // take level max here

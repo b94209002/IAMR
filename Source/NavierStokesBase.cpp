@@ -101,17 +101,7 @@ int         NavierStokesBase::do_derefine_outflow       = 1;
 int         NavierStokesBase::Nbuf_outflow              = 1;
 int         NavierStokesBase::do_denminmax              = 0;
 int         NavierStokesBase::do_scalminmax             = 0;
-<<<<<<< HEAD
-int         NavierStokesBase::do_density_ref            = 0;
-int         NavierStokesBase::do_tracer_ref             = 0;
-int         NavierStokesBase::do_tracer2_ref            = 0;
-int         NavierStokesBase::do_vorticity_ref          = 0;
-int         NavierStokesBase::do_temp_ref               = 0;
-int         NavierStokesBase::do_liquid_ref             = 0;
-int         NavierStokesBase::do_scalar_update_in_order = 0; 
-=======
 int         NavierStokesBase::do_scalar_update_in_order = 0;
->>>>>>> development
 Vector<int>  NavierStokesBase::scalarUpdateOrder;
 int         NavierStokesBase::getForceVerbose           = 0;
 int         NavierStokesBase::do_LES                    = 0;
@@ -450,14 +440,6 @@ NavierStokesBase::Initialize ()
     pp.query("do_mac_proj",              do_mac_proj      );
     pp.query("do_denminmax",             do_denminmax     );
     pp.query("do_scalminmax",            do_scalminmax    );
-<<<<<<< HEAD
-    pp.query("do_density_ref",           do_density_ref   );
-    pp.query("do_tracer_ref",            do_tracer_ref    );
-    pp.query("do_tracer2_ref",           do_tracer2_ref   );
-    pp.query("do_vorticity_ref",         do_vorticity_ref );
-    pp.query("do_temp_ref",              do_temp_ref      );
-    pp.query("do_liquid_ref",            do_liquid_ref    );
-=======
 
     if ( pp.contains("do_temp_ref") ||
 	 pp.contains("do_density_ref") ||
@@ -466,7 +448,6 @@ NavierStokesBase::Initialize ()
 	 pp.contains("do_vorticity_ref") )
       amrex::Abort("ns.do_*_ref no longer supported. Refinement now implemented using refinement_indicators. For help, see UsersGuide or examples in /Exec");
 
->>>>>>> development
     pp.query("visc_tol",visc_tol);
     pp.query("visc_abs_tol",visc_abs_tol);
 
@@ -1554,9 +1535,9 @@ NavierStokesBase::initRhoAvg (Real alpha)
 {
     const MultiFab& S_new = get_new_data(State_Type);
 
-    // 3/03/18 - this setVal appears to be unnecessary, comment it out
-    // note: rho_avg has 1 ghost cell
-    //rho_avg.setVal(0);
+    // Set to a ridiculous number just for debugging -- shouldn't need this otherwise
+    rho_avg.setVal(1.e200);
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -2472,67 +2453,7 @@ NavierStokesBase::post_timestep (int crse_iteration)
     {
         sum_integrated_quantities();
     }
-<<<<<<< HEAD
-#if (AMREX_SPACEDIM==3)
-    //
-    // Derive turbulent statistics
-    //
-    if (level==0 && turb_interval>0 && (parent->levelSteps(0)%turb_interval == 0))
-    {
-        sum_turbulent_quantities();
-    }
-#ifdef SUMJET
-    //
-    // Derive turbulent statistics for the round jet
-    //
-    if (level==0 && jet_interval>0 && (parent->levelSteps(0)%jet_interval == 0))
-    {
-        sum_jet_quantities();
-    }
-#endif
-#endif
-    //  
-    // Time averaged output 
-    //
 
-    if (0)
-//    if (num_time_averaged > 0 && numparent->plotInt() > 1)
-    {
-       // create the TimeAverge_Type variable 
-       MultiFab& TA_new = get_new_data(TimeAverage_Type);
-       MultiFab& TA_old = get_old_data(TimeAverage_Type);
-=======
->>>>>>> development
-
-       // state variables 
-       MultiFab& S_new = get_new_data(State_Type);
-       MultiFab::Copy(TA_new,S_new,Density,0,1,0);
-
-       // derived variables              
-       int dcomp = 1;  // first component of Time_Average
-       const Real cur_time = state[State_Type].curTime();
-       AmrLevel::derive("liquid_water",cur_time,TA_new,dcomp);
-
-
-       if ((parent->levelSteps(0)%parent->plotInt() == 1))
-       {
-          // Initialize TA with the variables
-          MultiFab::Copy(TA_old,TA_new,0,0,2,0);
-       }
-       else
-       {
-          // Otherwise add to TA
-          MultiFab::Saxpy(TA_old,1.0,TA_new,0,0,2,0);
-          MultiFab::Copy(TA_new,TA_old,0,0,2,0);
-       }
-
-       // If at the final step, divide by the number of steps over which we are averaging. 
-       if ((parent->levelSteps(0)%parent->plotInt() == 0))
-       {
-          Real one_over_scalar = 1.0 / (Real) parent->plotInt() ;
-          TA_new.mult(one_over_scalar,0,2,0);
-       }
-    }
     if (level > 0) incrPAvg();
 
     old_intersect_new          = grids;

@@ -378,7 +378,7 @@ NavierStokes::variableSetUp ()
     bcs[2]  = bc;
     name[2] = "gradpz";
 #endif
-
+/*
     //
     // ---- time-averaged variables --
     // 
@@ -394,6 +394,7 @@ NavierStokes::variableSetUp ()
     desc_lst.setComponent(TimeAverage_Type,0,"time_averaged_comp_1",bc,BndryFunc(FORT_DENFILL));
     desc_lst.setComponent(TimeAverage_Type,1,"time_averaged_comp_2",bc,BndryFunc(FORT_DENFILL));
     }
+*/    
     desc_lst.setComponent(Gradp_Type, Gradpx, name, bcs, gradp_bf);
 
     //
@@ -501,7 +502,7 @@ NavierStokes::variableSetUp ()
                    dernull,the_same_box);
     derive_lst.addComponent("total_particle_count",desc_lst,State_Type,Density,1);
 #endif
-
+/*
     // 
     // Liquid water content  
     // 
@@ -515,7 +516,7 @@ NavierStokes::variableSetUp ()
     derive_lst.add("humidity",IndexType::TheCellType(),1,derhumid,the_same_box);
     derive_lst.addComponent("humidity",desc_lst,State_Type,Trac,1);
     derive_lst.addComponent("humidity",desc_lst,State_Type,Trac2,1);
-
+*/
     //
     // **************  DEFINE ERROR ESTIMATION QUANTITIES  *************
     //
