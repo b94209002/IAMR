@@ -7,12 +7,13 @@
 #include <AMReX_MacBndry.H>
 #include <MacOpMacDrivers.H>
 #include <NavierStokesBase.H>
-#include <MACPROJ_F.H>
-#include <MacOutFlowBC.H>
+#include <OutFlowBC.H>
 
 #ifdef AMREX_USE_EB
 #include <iamr_mol.H>
 #endif
+
+#include <iamr_godunov.H>
 
 //fixme, for writesingle level plotfile
 #include<AMReX_PlotFileUtil.H>
@@ -47,7 +48,6 @@ Real MacProj::mac_sync_tol;
 int  MacProj::do_outflow_bcs;
 int  MacProj::fix_mac_sync_rhs;
 int  MacProj::check_umac_periodicity;
-int  MacProj::anel_grow       = 1;
 
 namespace
 {
@@ -117,7 +117,6 @@ MacProj::MacProj (Amr*   _parent,
     phi_bcs(_finest_level+1),
     mac_phi_crse(_finest_level+1),
     mac_reg(_finest_level+1),
-    anel_coeff(_finest_level+1),
     finest_level(_finest_level)
 {
     Initialize();
@@ -125,9 +124,6 @@ MacProj::MacProj (Amr*   _parent,
     if (verbose) amrex::Print() << "Creating mac_projector\n";
 
     finest_level_allocated = finest_level;
-
-    for (int lev = 0; lev <= finest_level; lev++)
-        anel_coeff[lev] = 0;
 }
 
 MacProj::~MacProj () {}
@@ -164,44 +160,6 @@ MacProj::install_level (int       level,
                                               parent->refRatio(level-1),level,1));
     }
 
-    if (level > anel_coeff.size()-1) {
-        anel_coeff.resize(level+1);
-        anel_coeff[level] = 0;
-    }
-}
-void
-MacProj::install_anelastic_coefficient (int               level,
-                                        Real**            _anel_coeff)
-{
-    if (verbose) amrex::Print() << "Installing anel_coeff into MacProj level " << level << '\n';
-
-    if (level > anel_coeff.size()-1) anel_coeff.resize(level+1);
-    anel_coeff[level] = _anel_coeff;
-}
-void
-MacProj::build_anelastic_coefficient (int      level,
-                                      Real**& _anel_coeff)
-{
-    const BoxArray& grids = parent->getLevel(level).boxArray();
-    const int N = grids.size();
-    _anel_coeff = new Real*[N];
-    for (int i = 0; i < grids.size(); i++)
-    {
-        const int jlo = grids[i].smallEnd(AMREX_SPACEDIM-1)-anel_grow;
-        const int jhi = grids[i].bigEnd(AMREX_SPACEDIM-1)+anel_grow;
-        const int len = jhi - jlo + 1;
-
-        _anel_coeff[i] = new Real[len];
-
-        // FIXME!
-        // This is just a placeholder for testing. Should create (problem
-        // dependent) build_coefficient() function in problem directory
-        // ...Perhaps also need to worry about deleting anel_coeff
-        // Also not sure why Projection and MacProj have separate anel_coeff
-        // arrays, since they both appear to be cell centered.
-        for (int j=0; j<len; j++)
-            _anel_coeff[i][j] = 0.05*(jlo+j);
-    }
 }
 
 // xxxxx Can we skip this if using mlmg?
@@ -325,15 +283,10 @@ MacProj::mac_project (int             level,
 
     const BoxArray& grids      = LevelData[level]->boxArray();
     const DistributionMapping& dmap = LevelData[level]->DistributionMap();
-    const Geometry& geom       = parent->Geom(level);
-    const Real*     dx         = geom.CellSize();
     const int       max_level  = parent->maxLevel();
     MultiFab*       mac_phi    = 0;
     NavierStokesBase&   ns     = *(NavierStokesBase*) &(parent->getLevel(level));
-    const MultiFab& volume     = ns.Volume();
-    const MultiFab* area_level = ns.Area();
-    IntVect         crse_ratio = level > 0 ? parent->refRatio(level-1)
-        : IntVect::TheZeroVector();
+    const MultiFab*     area   = ns.Area();
     //
     // If finest level possible no need to make permanent mac_phi for bcs.
     //
@@ -369,17 +322,6 @@ MacProj::mac_project (int             level,
     MultiFab Rhs(grids,dmap,1,0, MFInfo(), LevelData[level]->Factory());
 
     Rhs.copy(divu);
-
-    MultiFab area_tmp[AMREX_SPACEDIM];
-    if (anel_coeff[level] != 0) {
-    for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-        area_tmp[i].define(area_level[i].boxArray(), area_level[i].DistributionMap(), 1, 1, MFInfo(), LevelData[level]->Factory());
-        MultiFab::Copy(area_tmp[i], area_level[i], 0, 0, 1, 1);
-    }
-        scaleArea(level,area_tmp,anel_coeff[level]);
-    }
-
-    const MultiFab* area = (anel_coeff[level] != 0) ? area_tmp : area_level;
 
     MultiFab* cphi = (level == 0) ? nullptr : mac_phi_crse[level-1].get();
     mlmg_mac_level_solve(parent, cphi, *phys_bc, density_math_bc, level, Density, mac_tol, mac_abs_tol,
@@ -466,13 +408,10 @@ MacProj::mac_sync_solve (int       level,
     const BoxArray& grids      = LevelData[level]->boxArray();
     const DistributionMapping& dmap = LevelData[level]->DistributionMap();
     const Geometry& geom       = parent->Geom(level);
-    const Real*     dx         = geom.CellSize();
     const BoxArray& fine_boxes = LevelData[level+1]->boxArray();
-    IntVect         crse_ratio = level > 0 ? parent->refRatio(level-1)
-        : IntVect::TheZeroVector();
     const NavierStokesBase& ns_level   = *(NavierStokesBase*) &(parent->getLevel(level));
     const MultiFab&     volume     = ns_level.Volume();
-    const MultiFab*     area_level = ns_level.Area();
+    const MultiFab*     area       = ns_level.Area();
     //
     // Reusing storage here, since there should be no more need for the
     // values in mac_phi at this level and mac_sync_phi only need to last
@@ -541,15 +480,6 @@ MacProj::mac_sync_solve (int       level,
     const Real rhs_scale = 2.0/dt;
 
     MultiFab area_tmp[AMREX_SPACEDIM];
-    if (anel_coeff[level] != 0) {
-       for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-           area_tmp[i].define(area_level[i].boxArray(), area_level[i].DistributionMap(), 1, 1, MFInfo(), LevelData[level]->Factory());
-           MultiFab::Copy(area_tmp[i], area_level[i], 0, 0, 1, 1);
-       }
-       scaleArea(level,area_tmp,anel_coeff[level]);
-    }
-
-    const MultiFab* area = (anel_coeff[level] != 0) ? area_tmp : area_level;
 
     //
     // Compute Ucorr, including filling ghost cells for EB
@@ -608,13 +538,10 @@ MacProj::mac_sync_compute (int                   level,
     const BoxArray& grids               = LevelData[level]->boxArray();
     const DistributionMapping& dmap     = LevelData[level]->DistributionMap();
     const Geometry& geom                = parent->Geom(level);
-    const Real*     dx                  = geom.CellSize();
     const int       numscal             = NUM_STATE - AMREX_SPACEDIM;
     NavierStokesBase&   ns_level        = *(NavierStokesBase*) &(parent->getLevel(level));
-    const MultiFab& volume              = ns_level.Volume();
     const MultiFab* area                = ns_level.Area();
-    Godunov*        godunov             = ns_level.godunov;
-    bool            use_forces_in_trans = godunov->useForcesInTrans() ? true : false;
+    bool            use_forces_in_trans = ns_level.GodunovUseForcesInTrans();
 
     //NOTE
     // Visc terms, GradP, forces not used in EB advection algorithm
@@ -646,32 +573,38 @@ MacProj::mac_sync_compute (int                   level,
             ns_level.getViscTerms(scal_visc_terms,AMREX_SPACEDIM,numscal,prev_time);
     }
 
+
+    const int  ncomp = 1;         // Number of components to process at once
+
 #ifdef AMREX_USE_EB
     const int  nghost  = 2;
-
-    MultiFab& Gp = ns_level.getGradP();
 #else
     const int  nghost  = 0;
-
-    MultiFab Gp(grids,dmap,AMREX_SPACEDIM,1,MFInfo(),ns_level.Factory());
-    ns_level.getGradP(Gp, prev_pres_time);
 #endif
-
-    std::unique_ptr<MultiFab> divu_fp (ns_level.getDivCond(1,prev_time));
+    MultiFab& Gp = ns_level.get_old_data(Gradp_Type);
 
     //
-    // Compute the mac sync correction.
+    // Prep MFs to store fluxes and edge states
     //
     MultiFab fluxes[AMREX_SPACEDIM];
+    MultiFab edgestate[AMREX_SPACEDIM];
+
     for (int i = 0; i < AMREX_SPACEDIM; i++)
     {
         const BoxArray& ba = LevelData[level]->getEdgeBoxArray(i);
         fluxes[i].define(ba, dmap, NUM_STATE, nghost, MFInfo(),ns_level.Factory());
+        edgestate[i].define(ba, dmap, ncomp, nghost, MFInfo(), ns_level.Factory());
     }
 
-    FillPatchIterator S_fpi(ns_level,vel_visc_terms,Godunov::hypgrow(),
+    std::unique_ptr<MultiFab> divu_fp (ns_level.getDivCond(1,prev_time));
+
+    FillPatchIterator S_fpi(ns_level,vel_visc_terms,ns_level.GodunovHypgrow(),
                             prev_time,State_Type,0,NUM_STATE);
     MultiFab& Smf = S_fpi.get_mf();
+
+    //
+    // Compute the mac sync correction.
+    //
 
 
 #ifdef AMREX_USE_EB
@@ -681,16 +614,8 @@ MacProj::mac_sync_compute (int                   level,
     // Use a block here so all temporaries will go out of scope once
     // it is done being executed
     {
-        MultiFab edgestate[AMREX_SPACEDIM];
-        const int  ncomp   = 1;         // Number of components to process at once
         Vector<BCRec>  math_bcs(ncomp);
         const Box& domain = geom.Domain();
-
-        for (int i = 0; i < AMREX_SPACEDIM; ++i)
-        {
-            const BoxArray& ba = ns_level.getEdgeBoxArray(i);
-            edgestate[i].define(ba, dmap, ncomp, nghost, MFInfo(), ns_level.Factory());
-        }
 
         for (int comp = 0; comp < NUM_STATE; ++comp)
         {
@@ -702,15 +627,23 @@ MacProj::mac_sync_compute (int                   level,
                 // Select sync MF and its component for processing
                 const int  sync_comp = comp < AMREX_SPACEDIM ? comp   : comp-AMREX_SPACEDIM;
                 MultiFab*  sync_ptr  = comp < AMREX_SPACEDIM ? &Vsync : &Ssync;
+		// Using fetchBCArray seems a better option than this.
+		// Vector<BCRec> const& bcs  = comp < AMREX_SPACEDIM
+		// 				   ? ns_level.get_bcrec_velocity()
+		// 				   : ns_level.get_bcrec_scalars();
+		// // create a single element amrex::Vector 
+		// Vector<BCRec> const& math_bcs= {bcs[sync_comp]};
 
+		BCRec  const* d_bcrec_ptr = comp < AMREX_SPACEDIM
+						   ? ns_level.get_bcrec_velocity_d_ptr()
+						   : ns_level.get_bcrec_scalars_d_ptr();
 
                 MOL::ComputeSyncAofs(*sync_ptr, sync_comp, ncomp, Smf, comp,
                                      D_DECL(u_mac[0],u_mac[1],u_mac[2]),
                                      D_DECL(*Ucorr[0],*Ucorr[1],*Ucorr[2]),
                                      D_DECL(edgestate[0],edgestate[1],edgestate[2]), 0, false,
                                      D_DECL(fluxes[0],fluxes[1],fluxes[2]), comp,
-                                     math_bcs, geom  );
-
+                                     math_bcs, &d_bcrec_ptr[sync_comp], geom  );
             }
         }
     }
@@ -718,128 +651,140 @@ MacProj::mac_sync_compute (int                   level,
     //
     // non-EB algorithm
     //
+
+    const int ngrow  = 1; // Recall fluxes have 0 ghost cells, so only need 1 here
+    MultiFab forcing_term(grids, dmap, NUM_STATE, ngrow);
+
+    // Store momenta multifab if conservative approach is used,
+    // i.e. rho* u.
+    // We make it with AMREX_SPACEDIM components instead of only one
+    // (loop below is done component by component) because ComputeSyncAofs will
+    // need to know which component of velocity is being processed.
+    MultiFab momenta;
+    if  (do_mom_diff == 1)
+    {
+        momenta.define(grids,dmap, AMREX_SPACEDIM, Smf.nGrow());
+        MultiFab::Copy(momenta,Smf,0,0,AMREX_SPACEDIM, Smf.nGrow());
+        for (int d=0; d < AMREX_SPACEDIM; ++d )
+            MultiFab::Multiply( momenta, Smf, Density, d, 1, Smf.nGrow());
+    }
+
+
+    //
+    // Compute forcing terms for all component
+    //
 #ifdef _OPENMP
-#pragma omp parallel
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     {
-        Vector<int> ns_level_bc;
-        FArrayBox tforces, tvelforces, U;
-        FArrayBox flux[AMREX_SPACEDIM], Rho;
-
-        for (MFIter Smfi(Smf,true); Smfi.isValid(); ++Smfi)
+        for (MFIter Smfi(Smf,TilingIfNotGPU()); Smfi.isValid(); ++Smfi)
         {
-            const int i     = Smfi.index();
-            FArrayBox& S    = Smf[Smfi];
-            FArrayBox& divu = (*divu_fp)[Smfi];
-            const Box& bx = Smfi.tilebox();
-            //
-            // Step 1: compute ucorr = grad(phi)/rhonph -- Now done in mac_sync_solve()
-            //
-            // Create storage for corrective velocities.
-            //
-            Rho.resize(amrex::grow(bx,1),1);
+            const auto gbx = Smfi.growntilebox(ngrow);
+
+            ns_level.getForce(forcing_term[Smfi],gbx,0,NUM_STATE,
+			      prev_time,Smf[Smfi],Smf[Smfi],Density);
+        }
+    }
+
+    for (int comp = 0; comp < NUM_STATE; ++comp)
+    {
+        if (increment_sync.empty() || increment_sync[comp]==1)
+        {
 
             //
-            // Step 2: compute Mac correction by calling GODUNOV box
+            // Compute total forcing term
             //
-            // Get needed data.
-            //
-            Rho.copy<RunOn::Host>(S,Density,0,1);
-
-            const Box& forcebx = grow(bx,1);
-            tforces.resize(forcebx,NUM_STATE);
-            ns_level.getForce(tforces,forcebx,1,0,NUM_STATE,prev_time,Smf[Smfi],Smf[Smfi],Density);
-
-            //
-            // Compute total forcing terms.
-            //
-            godunov->Sum_tf_gp_visc(tforces, 0, vel_visc_terms[Smfi], 0, Gp[Smfi], 0, Rho, 0);
-            godunov->Sum_tf_divu_visc(S, AMREX_SPACEDIM, tforces, AMREX_SPACEDIM, numscal,
-                                      scal_visc_terms[Smfi], 0, divu, 0, Rho, 0, 1);
-            if (use_forces_in_trans)
+            for (MFIter Smfi(Smf,TilingIfNotGPU()); Smfi.isValid(); ++Smfi)
             {
-                tvelforces.resize(forcebx,AMREX_SPACEDIM);
-                ns_level.getForce(tvelforces,bx,1,Xvel,BL_SPACEDIM,prev_time,Smf[Smfi],Smf[Smfi],Density);
-                godunov->Sum_tf_gp_visc(tvelforces,0,vel_visc_terms[Smfi],0,Gp[Smfi],0,Rho,0);
-            }
-            //
-            // Get the sync FABS.
-            //
-            FArrayBox& u_sync = Vsync[Smfi];
-            FArrayBox& s_sync = Ssync[Smfi];
+                auto const  gbx   = Smfi.growntilebox(ngrow);
 
-            D_TERM(FArrayBox& u_mac_fab0 = u_mac[0][Smfi];,
-                   FArrayBox& u_mac_fab1 = u_mac[1][Smfi];,
-                   FArrayBox& u_mac_fab2 = u_mac[2][Smfi];);
-            //
-            // Loop over state components and compute the sync advective component.
-            //
-            FArrayBox* Sp;
-            Box gbx = grow(Smfi.tilebox(),Smf.nGrow());
-            FArrayBox rhoS(gbx,BL_SPACEDIM);
+                //
+		// Compute total forcing terms.
+		//
+                auto const& tf    = forcing_term.array(Smfi,comp);
 
-            for (int comp = 0; comp < NUM_STATE; comp++)
+                if (comp < AMREX_SPACEDIM)  // Velocity/Momenta
+                {
+                    auto const& visc = vel_visc_terms[Smfi].const_array(comp);
+                    auto const& gp   = Gp[Smfi].const_array(comp);
+
+		    if ( do_mom_diff == 0 )
+		    {
+		      auto const& rho   = Smf[Smfi].const_array(Density);
+				      
+		      amrex::ParallelFor(gbx, [tf, visc, gp, rho]
+                      AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+		      {
+                        tf(i,j,k)  += visc(i,j,k) - gp(i,j,k);
+                        tf(i,j,k)  /= rho(i,j,k);
+                      });
+		    }
+		    else
+		    {
+		      amrex::ParallelFor(gbx, [tf, visc, gp]
+                      AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+		      {
+                        tf(i,j,k)  += visc(i,j,k) - gp(i,j,k);
+                      });
+		    }
+		}
+                else  // Scalars
+		{
+                    auto const& visc = scal_visc_terms[Smfi].const_array(comp-AMREX_SPACEDIM);
+                    auto const& S    = Smf.const_array(Smfi,comp);
+                    auto const& divu = divu_fp -> const_array(Smfi);
+                    amrex::ParallelFor(gbx, [tf, visc, S, divu]
+                    AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        tf(i,j,k) += visc(i,j,k) - S(i,j,k) * divu(i,j,k);
+                    });
+                }
+	    }
+
+
+	    //
+            // Perform sync
+	    //
+
+            // Select sync MF and its component for processing
+            const int  sync_comp   = comp < AMREX_SPACEDIM ? comp   : comp-AMREX_SPACEDIM;
+            MultiFab*  sync_ptr    = comp < AMREX_SPACEDIM ? &Vsync : &Ssync;
+            const bool is_velocity = comp < AMREX_SPACEDIM ? true   : false;
+	    BCRec  const* d_bcrec_ptr = comp < AMREX_SPACEDIM
+					       ? &(ns_level.get_bcrec_velocity_d_ptr())[sync_comp]
+					       : &(ns_level.get_bcrec_scalars_d_ptr())[sync_comp];
+
+            const auto& Q = (do_mom_diff == 1 and comp < AMREX_SPACEDIM) ? momenta : Smf;
+
+            amrex::Gpu::DeviceVector<int> iconserv;
+            iconserv.resize(1, 0);
+            iconserv[0] = (advectionType[comp] == Conservative) ? 1 : 0;
+
+            Godunov::ComputeSyncAofs(*sync_ptr, sync_comp, ncomp,
+                                     Q, comp,
+                                     AMREX_D_DECL(u_mac[0],u_mac[1],u_mac[2]),
+                                     AMREX_D_DECL(*Ucorr[0],*Ucorr[1],*Ucorr[2]),
+                                     AMREX_D_DECL(edgestate[0],edgestate[1],edgestate[2]), 0, false,
+                                     AMREX_D_DECL(fluxes[0],fluxes[1],fluxes[2]), comp,
+                                     forcing_term, comp, *divu_fp,
+                                     d_bcrec_ptr, geom, iconserv, dt,
+                                     ns_level.GodunovUsePPM(), ns_level.GodunovUseForcesInTrans(),
+                                     is_velocity );
+
+	}
+    }
+#endif
+
+
+    if (level > 0 && update_fluxreg)
+    {
+        const Real mlt =  -1.0/( (double) parent->nCycle(level));
+        for (int d = 0; d < AMREX_SPACEDIM; ++d)
+        {
+            for (int comp = 0; comp < NUM_STATE; ++comp)
             {
                 if (increment_sync.empty() || increment_sync[comp]==1)
                 {
-                    const int  sync_ind = comp < AMREX_SPACEDIM ? comp  : comp-BL_SPACEDIM;
-                    FArrayBox& temp     = comp < AMREX_SPACEDIM ? u_sync : s_sync;
-                    ns_level_bc         = ns_level.fetchBCArray(State_Type,bx,comp,1);
-
-                    int use_conserv_diff = (advectionType[comp] == Conservative) ? true : false;
-
-                    if (do_mom_diff == 1 && comp < AMREX_SPACEDIM)
-                    {
-                        rhoS.copy<RunOn::Host>(Smf[Smfi],gbx,comp,gbx,comp,1);
-                        rhoS.mult<RunOn::Host>(Smf[Smfi],gbx,gbx,Density,comp,1);
-                        Sp = &rhoS;
-                        tforces.mult<RunOn::Host>(Smf[Smfi],tforces.box(),tforces.box(),Density,comp,1);
-                    }
-                    else
-                    {
-                        Sp = &Smf[Smfi];
-                    }
-
-                    for (int d=0; d<AMREX_SPACEDIM; ++d)
-                    {
-                        const Box& ebx = amrex::surroundingNodes(bx,d);
-                        flux[d].resize(ebx,BL_SPACEDIM+1);
-                    }
-
-                    godunov->SyncAdvect(bx, dx, dt, level,
-                                        area[0][i], u_mac_fab0, (*Ucorr[0])[Smfi], flux[0],
-                                        area[1][i], u_mac_fab1, (*Ucorr[1])[Smfi], flux[1],
-#if (BL_SPACEDIM == 3)
-                                        area[2][i], u_mac_fab2, (*Ucorr[2])[Smfi], flux[2],
-#endif
-                                        S, *Sp, tforces, divu, comp, temp, sync_ind,
-                                        use_conserv_diff, comp,
-                                        ns_level_bc.dataPtr(), FPU, volume[i]);
-                    //
-                    // NOTE: the signs here are opposite from VELGOD.
-                    // NOTE: fluxes expected to be in extensive form.
-                    //
-                    if (level > 0 && update_fluxreg)
-                    {
-                        for (int d = 0; d < BL_SPACEDIM; d++){
-                            const Box& ebx = Smfi.nodaltilebox(d);
-                            fluxes[d][Smfi].copy<RunOn::Host>(flux[d],ebx,0,ebx,comp,1);
-                        }
-                    }
-                }
-            }
-            //
-            // Multiply the sync term by dt -- now done in the calling routine.
-            //
-        }
-    } //end OMP parallel region
-#endif
-
-    if (level > 0 && update_fluxreg){
-        const Real mlt =  -1.0/( (double) parent->nCycle(level));
-        for (int d = 0; d < BL_SPACEDIM; d++){
-            for (int comp = 0; comp < NUM_STATE; comp++){
-                if (increment_sync.empty() || increment_sync[comp]==1){
                     adv_flux_reg->FineAdd(fluxes[d],d,comp,comp,1,-dt);
                 }
             }
@@ -881,8 +826,6 @@ MacProj::mac_sync_compute (int                    level,
     const DistributionMapping& dmap     = LevelData[level]->DistributionMap();
     const Geometry& geom         = parent->Geom(level);
     NavierStokesBase& ns_level   = *(NavierStokesBase*) &(parent->getLevel(level));
-    const MultiFab& volume       = ns_level.Volume();
-    const MultiFab* area         = ns_level.Area();
 
 #ifdef AMREX_USE_EB
     const int  nghost  = 2;
@@ -890,8 +833,11 @@ MacProj::mac_sync_compute (int                    level,
     const int  nghost  = 0;
 #endif
 
+    const int  ncomp   = 1;         // Number of components to process at once
+
     MultiFab fluxes[BL_SPACEDIM];
-    for (int i = 0; i < BL_SPACEDIM; i++) {
+    for (int i = 0; i < BL_SPACEDIM; i++)
+    {
         const BoxArray& ba = LevelData[level]->getEdgeBoxArray(i);
         fluxes[i].define(ba, dmap, 1, nghost, MFInfo(),ns_level.Factory());
     }
@@ -906,82 +852,48 @@ MacProj::mac_sync_compute (int                    level,
     // Use a block here so all temporaries will go out of scope once
     // it is done being executed
     {
-        const int  ncomp   = 1;         // Number of components to process at once
-        Vector<BCRec>  math_bcs(ncomp);
+
         const Box& domain = geom.Domain();
 
-	// Get BCs for this component
-	// FIXME?  *think* comp should be okay here. Seems comp is the state index
-	// and not the index for Sync.
-	math_bcs = ns_level.fetchBCArray(State_Type, comp, ncomp);
-
+	// Bogus arguments -- they will not be used since we don't need to recompute the edge states
+	Vector<BCRec>  bcs;
+	BCRec  const* d_bcrec_ptr = NULL;
+	  
 	MOL::ComputeSyncAofs(Sync, s_ind, ncomp,
 			     Sync, s_ind, // this is not used when we pass edge states
 			     D_DECL(*Ucorr[0],*Ucorr[1],*Ucorr[2]),  // this is not used when we pass edge states
 			     D_DECL(*Ucorr[0],*Ucorr[1],*Ucorr[2]),
 			     D_DECL(*sync_edges[0],*sync_edges[1],*sync_edges[2]), eComp, true,
 			     D_DECL(fluxes[0],fluxes[1],fluxes[2]), 0,
-			     math_bcs, geom  );
+			     bcs, d_bcrec_ptr, geom  );
 
     }
 #else
     //
     // non-EB algorithm
     //
-    Godunov godunov;
 
-#ifdef _OPENMP
-#pragma omp parallel
+    // Bogus arguments -- they will not be used since we don't need to recompute the edge states
+    BCRec  const* d_bcrec_ptr = NULL;
+    Gpu::DeviceVector<int> iconserv;
+
+    Godunov::ComputeSyncAofs(Sync, s_ind, ncomp,
+                             MultiFab(), s_ind,                      // this is not used when known_edgestate = true
+                             AMREX_D_DECL(*Ucorr[0],*Ucorr[1],*Ucorr[2]),  // this is not used when we pass edge states
+                             AMREX_D_DECL(*Ucorr[0],*Ucorr[1],*Ucorr[2]),
+                             AMREX_D_DECL(*sync_edges[0],*sync_edges[1],*sync_edges[2]), eComp, true,
+                             AMREX_D_DECL(fluxes[0],fluxes[1],fluxes[2]), 0,
+                             MultiFab(), 0, MultiFab(),                        // this is not used when known_edgestate = true
+                             d_bcrec_ptr, geom, iconserv, 0.0, false, false, false  ); // this is not used when known_edgestate = true
+
+
+
 #endif
-    {
-        FArrayBox flux[BL_SPACEDIM];
 
-        for (MFIter Syncmfi(Sync,true); Syncmfi.isValid(); ++Syncmfi)
-        {
-            const Box& bx = Syncmfi.tilebox();
-
-            //
-            // Step 2: compute Mac correction by advecting the edge states.
-            //
-            D_TERM(flux[0].resize(amrex::surroundingNodes(bx,0),1);,
-                   flux[1].resize(amrex::surroundingNodes(bx,1),1);,
-                   flux[2].resize(amrex::surroundingNodes(bx,2),1););
-
-            D_TERM(flux[0].copy<RunOn::Host>((*sync_edges[0])[Syncmfi],eComp,0,1);,
-                   flux[1].copy<RunOn::Host>((*sync_edges[1])[Syncmfi],eComp,0,1);,
-                   flux[2].copy<RunOn::Host>((*sync_edges[2])[Syncmfi],eComp,0,1););
-
-            int use_conserv_diff = (advectionType[comp] == Conservative) ? true : false;
-
-            godunov.ComputeSyncAofs(bx,
-                                    area[0][Syncmfi],
-                                    (*Ucorr[0])[Syncmfi], flux[0],
-                                    area[1][Syncmfi],
-                                    (*Ucorr[1])[Syncmfi], flux[1],
-#if (BL_SPACEDIM == 3)
-                                    area[2][Syncmfi],
-                                    (*Ucorr[2])[Syncmfi], flux[2],
-#endif
-                                    volume[Syncmfi], Sync[Syncmfi],
-                                    s_ind, use_conserv_diff);
-
-            //
-            // NOTE: the signs here are opposite from VELGOD.
-            // NOTE: fluxes expected to be in extensive form.
-            //
             if (level > 0 && update_fluxreg)
             {
-                for (int d = 0; d < BL_SPACEDIM; d++){
-                    const Box& ebx = Syncmfi.nodaltilebox(d);
-                    fluxes[d][Syncmfi].copy<RunOn::Host>(flux[d],ebx,0,ebx,0,1);
-                }
-            }
-        }
-    }//end OMP parallel region
-#endif
-
-    if (level > 0 && update_fluxreg){
-        for (int d = 0; d < BL_SPACEDIM; d++){
+        for (int d = 0; d < AMREX_SPACEDIM; ++d)
+        {
             adv_flux_reg->FineAdd(fluxes[d],d,0,comp,1,-dt);
         }
     }
@@ -1072,7 +984,6 @@ MacProj::set_outflow_bcs (int             level,
     const Box&        domain = parent->Geom(level).Domain();
     //
     // Create 1-wide cc box just outside boundary to hold phi.
-    // Create 1-wide cc box just inside  boundary to hold rho,u,divu.
     //
     BoxList ccBoxList, phiBoxList;
     // numOutFlowFaces gives the number of outflow faces on the entire
@@ -1116,58 +1027,9 @@ MacProj::set_outflow_bcs (int             level,
 
     if ( !ccBoxList.isEmpty() )
     {
-        BoxArray  ccBoxArray( ccBoxList);
         BoxArray phiBoxArray(phiBoxList);
-        ccBoxList.clear();
         phiBoxList.clear();
 
-        FArrayBox rhodat[2*BL_SPACEDIM];
-        FArrayBox divudat[2*BL_SPACEDIM];
-        FArrayBox phidat[2*BL_SPACEDIM];
-
-        for ( int iface = 0; iface < nOutFlowTouched; ++iface)
-        {
-            rhodat[iface].resize(ccBoxArray[iface], 1);
-            divudat[iface].resize(ccBoxArray[iface], 1);
-            phidat[iface].resize(phiBoxArray[iface], 1);
-
-            if (Gpu::inLaunchRegion()) {
-               phidat[iface].setVal<RunOn::Gpu>(0.0);
-            } else {
-               phidat[iface].setVal<RunOn::Cpu>(0.0);
-            }
-            divu.copyTo(divudat[iface]);
-            S.copyTo(rhodat[iface], Density, 0, 1);
-        }
-
-        // rhodat.copy(S, Density, 0, 1);
-        // divudat.copy(divu, 0, 0, 1);
-
-        //
-        // Load ec data.
-        //
-
-        FArrayBox uedat[BL_SPACEDIM][2*BL_SPACEDIM];
-        for (int i = 0; i < BL_SPACEDIM; ++i)
-        {
-            BoxArray edgeArray(ccBoxArray);
-            edgeArray.surroundingNodes(i);
-            for ( int iface = 0; iface < nOutFlowTouched; ++iface)
-            {
-                uedat[i][iface].resize(edgeArray[iface], 1);
-                u_mac[i].copyTo(uedat[i][iface], 0, 0, 1);
-            }
-        }
-
-        MacOutFlowBC macBC;
-
-        NavierStokesBase* ns_level = dynamic_cast<NavierStokesBase*>(&parent->getLevel(level));
-        Real gravity = ns_level->getGravity();
-        const int* lo_bc = phys_bc->lo();
-        const int* hi_bc = phys_bc->hi();
-        macBC.computeBC(uedat, divudat, rhodat, phidat,
-                        geom, outFaces, nOutFlowTouched, lo_bc, hi_bc,
-                        umac_periodic_test_Tol, gravity);
         //
         // Must do this kind of copy instead of mac_phi->copy(phidat);
         // because we're copying onto the ghost cells of the FABs,
@@ -1180,13 +1042,9 @@ MacProj::set_outflow_bcs (int             level,
         {
             for (MFIter mfi(*mac_phi); mfi.isValid(); ++mfi)
             {
-                Box ovlp = (*mac_phi)[mfi].box() & phidat[iface].box();
+                Box ovlp = (*mac_phi)[mfi].box() & phiBoxArray[iface];
                 if (ovlp.ok()) {
-                   if (Gpu::inLaunchRegion()) {
-                      (*mac_phi)[mfi].copy<RunOn::Gpu>(phidat[iface],ovlp,0,ovlp,0,1);
-                   } else {
-                      (*mac_phi)[mfi].copy<RunOn::Cpu>(phidat[iface],ovlp,0,ovlp,0,1);
-                   }
+                      (*mac_phi)[mfi].setVal<RunOn::Gpu>(0,ovlp,0,1);
                 }
             }
         }
@@ -1333,48 +1191,3 @@ MacProj::test_umac_periodic (int       level,
     }
 }
 
-void
-MacProj::scaleArea (int level, MultiFab* area, Real** anel_coeff_loc)
-{
-    const BoxArray& grids = LevelData[level]->boxArray();
-
-    int mult = 1;
-
-    for (MFIter mfi(area[0],true); mfi.isValid(); ++mfi)
-    {
-        const FArrayBox& xarea  = area[0][mfi];
-        const FArrayBox& yarea  = area[1][mfi];
-        DEF_CLIMITS(xarea,ax_dat,axlo,axhi);
-        DEF_CLIMITS(yarea,ay_dat,aylo,ayhi);
-
-        const Box& bx = mfi.tilebox(IntVect::Zero);
-        const int* lo = bx.loVect();
-        const int* hi = bx.hiVect();
-
-        const int  i        = mfi.index();
-        const Box& gbx      = grids[i];
-        const int* gbxhi    = gbx.hiVect();
-        int anel_coeff_lo   = (gbx.loVect())[BL_SPACEDIM-1]-anel_grow;
-        int anel_coeff_hi   = (gbx.hiVect())[BL_SPACEDIM-1]+anel_grow;
-
-
-#if (BL_SPACEDIM == 2)
-        fort_scalearea(lo,hi,gbxhi,
-                       ax_dat,ARLIM(axlo),ARLIM(axhi),
-                       ay_dat,ARLIM(aylo),ARLIM(ayhi),
-                       anel_coeff_loc[i],&anel_coeff_lo,&anel_coeff_hi,
-                       &mult);
-
-#elif (BL_SPACEDIM == 3)
-        const FArrayBox& zarea = area[2][mfi];
-        DEF_CLIMITS(zarea,az_dat,azlo,azhi);
-        fort_scalearea(lo,hi,gbxhi,
-                       ax_dat,ARLIM(axlo),ARLIM(axhi),
-                       ay_dat,ARLIM(aylo),ARLIM(ayhi),
-                       az_dat,ARLIM(azlo),ARLIM(azhi),
-                       anel_coeff_loc[i],&anel_coeff_lo,&anel_coeff_hi,
-                       &mult);
-
-#endif
-    }
-}

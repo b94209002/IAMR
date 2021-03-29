@@ -7,7 +7,13 @@
 #include <AMReX_Amr.H>
 #include <AMReX_AmrLevel.H>
 #include <AMReX_FluxRegister.H>
-#include <Godunov.H>
+// #include <NavierStokesBase.H>
+
+
+//
+// A useful enumeration of the forms for the advective terms
+//
+enum AdvectionForm {Conservative = 0, NonConservative};
 
 class MacProj
 {
@@ -23,11 +29,6 @@ public:
 
     void install_level (int       level,
                         amrex::AmrLevel* level_data);
-
-    void install_anelastic_coefficient (int                    level,
-                                        amrex::Real**            anel_coeff);
-    void build_anelastic_coefficient (int                    level,
-				      amrex::Real**&            anel_coeff);
 
     void setup (int level);
     void cleanup (int level);
@@ -95,8 +96,6 @@ public:
 
     void test_umac_periodic (int level, amrex::MultiFab* u_mac);
 
-    void scaleArea (int level, amrex::MultiFab* area, amrex::Real** anel_coeff);
-
     //
     // Test the divergence constraint.
     //
@@ -127,11 +126,6 @@ public:
     //
     amrex::Vector<std::unique_ptr<amrex::MultiFab    > > mac_phi_crse;
     amrex::Vector<std::unique_ptr<amrex::FluxRegister> > mac_reg;
-    //
-    // Anelastic coefficient array.
-    //
-    static int                   anel_grow;
-    amrex::Vector<amrex::Real**> anel_coeff;
     //
     // Parameters.
     //

@@ -1,3 +1,7 @@
+//fixme, for writesingle level plotfile
+#include<AMReX_PlotFileUtil.H>
+//
+
 //
 // "Divu_Type" means S, where divergence U = S
 // "Dsdt_Type" means pd S/pd t, where S is as above
@@ -29,19 +33,18 @@
 
 #include <AMReX_buildInfo.H>
 
+#include <iamr_godunov.H>
+
 using namespace amrex;
 
 namespace
 {
     bool initialized = false;
-    static Real THERMO_cp = 1004.6;
 }
 
-void
-NavierStokes::variableCleanUp ()
-{
-    NavierStokesBase::variableCleanUp ();
-}
+Vector<AMRErrorTag> NavierStokes::errtags;
+//FIXME - see NS.H
+GpuArray<GpuArray<Real, NavierStokes::NUM_STATE_MAX>, AMREX_SPACEDIM*2> NavierStokes::m_bc_values;
 
 void
 NavierStokes::Initialize ()
@@ -50,11 +53,279 @@ NavierStokes::Initialize ()
 
     NavierStokesBase::Initialize();
 
-    NavierStokesBase::Initialize_specific();
+    NavierStokes::Initialize_specific();
 
     amrex::ExecOnFinalize(NavierStokes::Finalize);
 
     initialized = true;
+}
+
+void
+NavierStokes::Initialize_specific ()
+{
+    // Will need to add more lines when more variables are added
+    int stateIdx = Density;
+    Tracer = ++stateIdx;
+    if (do_trac2)
+      Tracer2 = ++stateIdx;
+    if (do_temp)
+      Temp = ++stateIdx;
+
+    //
+    // Default BC values
+    //
+    int ntrac = do_trac2 ? 2 : 1;
+    for (OrientationIter face; face; ++face)
+    {
+      int ori = int(face());
+      AMREX_D_TERM(m_bc_values[ori][0] = 0.0;,
+		   m_bc_values[ori][1] = 0.0;,
+		   m_bc_values[ori][2] = 0.0;);
+      m_bc_values[ori][Density] = 1.0;
+      for ( int nc = 0; nc < ntrac; nc++ )
+	m_bc_values[ori][Tracer+nc] = 0.0;
+      if (do_temp)
+	m_bc_values[ori][Temp] = 1.0;
+    }
+
+    ParmParse pp("ns");
+
+    //
+    // Check for integer BC type specification in inputs file (older style)
+    //
+    if ( pp.contains("lo_bc") )
+    {
+      Vector<int> lo_bc(BL_SPACEDIM), hi_bc(BL_SPACEDIM);
+      pp.getarr("lo_bc",lo_bc,0,BL_SPACEDIM);
+      pp.getarr("hi_bc",hi_bc,0,BL_SPACEDIM);
+      for (int i = 0; i < BL_SPACEDIM; i++)
+      {
+	  phys_bc.setLo(i,lo_bc[i]);
+	  phys_bc.setHi(i,hi_bc[i]);
+      }
+    }
+
+    //
+    // Read string BC specifications and BC values
+    //
+    {
+      int bc_tmp[2*AMREX_SPACEDIM];
+      
+      auto f = [&bc_tmp] (std::string const& bcid, Orientation ori)
+      {	  
+	  ParmParse pbc(bcid);
+	  std::string bc_type_in = "null";
+	  pbc.query("type", bc_type_in);
+	  std::string bc_type = amrex::toLower(bc_type_in);
+
+	  if (bc_type == "no_slip_wall" or bc_type == "nsw"
+	      or phys_bc.data()[ori] == PhysBCType::noslipwall)
+	  {
+	      amrex::Print() << bcid <<" set to no-slip wall.\n";
+
+	      bc_tmp[ori] = PhysBCType::noslipwall;
+
+	      // Note that m_bc_velocity defaults to 0 above so we are ok if
+	      //      queryarr finds nothing
+	      std::vector<Real> v;
+	      if (pbc.queryarr("velocity", v, 0, AMREX_SPACEDIM)) {
+		// Here we make sure that we only use the tangential components
+		//      of a specified velocity field -- the wall is not allowed
+		//      to move in the normal direction
+                v[ori.coordDir()] = 0.0;
+                for (int i=0; i<AMREX_SPACEDIM; i++){
+		  m_bc_values[ori][Xvel+i] = v[i];
+                }
+	      }
+	  }
+	  else if (bc_type == "slip_wall" or bc_type == "sw")
+	  {
+	      amrex::Print() << bcid <<" set to slip wall.\n";
+
+	      bc_tmp[ori] = PhysBCType::slipwall;
+
+	      // These values are set by default above -
+	      //      note that we only actually use the zero value for the normal direction;
+	      //      the tangential components are set to be first order extrap
+	      // m_bc_velocity[ori] = {0.0, 0.0, 0.0};
+	  }
+	  else if (bc_type == "mass_inflow" or bc_type == "mi"
+		   or phys_bc.data()[ori] == PhysBCType::inflow)
+	  {
+	      amrex::Print() << bcid << " set to mass inflow.\n";
+
+	      bc_tmp[ori] = PhysBCType::inflow;
+
+	      std::vector<Real> v;
+	      if (pbc.queryarr("velocity", v, 0, AMREX_SPACEDIM)) {
+		for (int i=0; i<AMREX_SPACEDIM; i++){
+		  m_bc_values[ori][Xvel+i] = v[i];
+		}
+	      }
+
+	      pbc.query("density", m_bc_values[ori][Density]);
+	      pbc.query("tracer", m_bc_values[ori][Tracer]);
+	      if (do_trac2) {
+		if ( pbc.countval("tracer") > 1 )
+		  amrex::Abort("NavierStokes::Initialize_specific: Please set tracer 2 inflow bc value with it's own entry in inputs file, e.g. xlo.tracer2 = bc_value");
+		pbc.query("tracer2", m_bc_values[ori][Tracer2]);
+	      }
+	      if (do_temp)
+		pbc.query("temp", m_bc_values[ori][Temp]);
+	  }
+	  else if (bc_type == "pressure_inflow" or bc_type == "pi")
+	  {
+	      amrex::Abort("NavierStokes::Initialize_specific: Pressure inflow boundary condition not yet implemented. If needed for your simulation, please contact us.");
+	      
+	      // amrex::Print() << bcid << " set to pressure inflow.\n";
+
+	      // bc_tmp[ori] = PhysBCType::pressure_inflow;
+
+	      // pbc.get("pressure", m_bc_pressure[ori]);
+	  }
+	  else if (bc_type == "pressure_outflow" or bc_type == "po"
+		   or phys_bc.data()[ori] == PhysBCType::outflow)
+          {
+	      amrex::Print() << bcid << " set to pressure outflow.\n";
+
+	      bc_tmp[ori] = PhysBCType::outflow;
+
+	      //pbc.query("pressure", m_bc_pressure[ori]);
+	      Real tmp = 0.;
+	      pbc.query("pressure", tmp);
+
+	      if ( tmp != 0. )
+		amrex::Abort("NavierStokes::Initialize_specific: Pressure outflow boundary condition != 0 not yet implemented. If needed for your simulation, please contact us.");
+	  }
+	  else if (bc_type == "symmetry" or bc_type == "sym")
+	  {
+	      amrex::Print() << bcid <<" set to symmetry.\n";
+
+	      bc_tmp[ori] = PhysBCType::symmetry;
+	  }
+	  else
+	  {
+	      bc_tmp[ori] = BCType::bogus;
+	  }
+
+	  if ( DefaultGeometry().isPeriodic(ori.coordDir()) ) {
+            if (bc_tmp[ori] == BCType::bogus || phys_bc.data()[ori] == PhysBCType::interior) {
+	      bc_tmp[ori] = PhysBCType::interior;
+            } else {
+	      std::cerr <<  " Wrong BC type for periodic boundary at "
+	                << bcid << ". Please correct inputs file."<<std::endl;
+	      amrex::Abort();
+            }
+	  }
+
+	  if ( bc_tmp[ori] == BCType::bogus && phys_bc.data()[ori] == BCType::bogus ) {
+	    std::cerr <<  " No valid BC type specificed for "
+	              << bcid  << ". Please correct inputs file."<<std::endl;
+	    amrex::Abort();
+	  }
+
+	  if ( bc_tmp[ori] != BCType::bogus && phys_bc.data()[ori] != BCType::bogus
+	       && bc_tmp[ori] != phys_bc.data()[ori] ) {
+	    std::cerr<<" Multiple conflicting BCs specified for "
+	             << bcid << ": "<<bc_tmp[ori]<<", "<<phys_bc.data()[ori]
+	             <<". Please correct inputs file."<<std::endl;
+	    amrex::Abort();
+	  }
+      };
+
+      f("xlo", Orientation(Direction::x,Orientation::low));
+      f("xhi", Orientation(Direction::x,Orientation::high));
+      f("ylo", Orientation(Direction::y,Orientation::low));
+      f("yhi", Orientation(Direction::y,Orientation::high));
+#if (AMREX_SPACEDIM == 3)
+      f("zlo", Orientation(Direction::z,Orientation::low));
+      f("zhi", Orientation(Direction::z,Orientation::high));
+#endif
+
+      if ( phys_bc.lo(0) == BCType::bogus )
+      {
+	//
+	// Then valid BC types must be in bc_tmp.
+	// Load them into phys_bc.
+	//
+	for (int dir = 0; dir < BL_SPACEDIM; dir++)
+	{
+	  phys_bc.setLo(dir,bc_tmp[dir]);
+	  phys_bc.setHi(dir,bc_tmp[dir+AMREX_SPACEDIM]);
+	}
+      } // else, phys_bc already has valid BC types
+    }
+
+    //fixme
+    // for (OrientationIter face; face; ++face)
+    // {
+    //   int ori = int(face());
+    //   Print()<<face()<<" : \n"
+    // 	     <<"   typ = "<<phys_bc.data()[ori]<<"\n"
+    // 	     <<"   vel = "<<m_bc_values[ori][0]<<" "<<m_bc_values[ori][1]<<"\n"
+    // 	     <<"   den = "<<m_bc_values[ori][Density]<<"\n";
+    //   for ( int nc = 0; nc < ntrac; nc++ )
+    // 	Print()<<"   trc = "<<m_bc_values[ori][Tracer+nc]<<"\n";
+    //   if (do_temp)
+    // 	Print()<<"   tmp = "<<m_bc_values[ori][Temp];
+    //   Print()<<std::endl;
+    //   Print()<<std::endl;
+    // }
+
+    //
+    // This checks for RZ and makes sure phys_bc is consistent with that.
+    //
+    read_geometry();
+
+    //
+    // Read viscous/diffusive parameters and array of viscous/diffusive coeffs.
+    // NOTE: at this point, we dont know number of state variables
+    //       so just read all values listed.
+    //
+
+    const int n_vel_visc_coef   = pp.countval("vel_visc_coef");
+    const int n_temp_cond_coef  = pp.countval("temp_cond_coef");
+    const int n_scal_diff_coefs = pp.countval("scal_diff_coefs");
+
+    if (n_vel_visc_coef != 1)
+        amrex::Abort("NavierStokesBase::Initialize(): Only one vel_visc_coef allowed");
+
+    if (do_temp && n_temp_cond_coef != 1)
+        amrex::Abort("NavierStokesBase::Initialize(): Only one temp_cond_coef allowed");
+
+    int n_visc = BL_SPACEDIM + 1 + n_scal_diff_coefs;
+    if (do_temp)
+        n_visc++;
+    visc_coef.resize(n_visc);
+    is_diffusive.resize(n_visc);
+
+    pp.get("vel_visc_coef",visc_coef[0]);
+    for (int i = 1; i < BL_SPACEDIM; i++)
+      visc_coef[i] = visc_coef[0];
+    //
+    // Here we set the coefficient for density, which does not diffuse.
+    //
+    visc_coef[Density] = -1;
+    //
+    // Set the coefficients for the scalars, but temperature.
+    //
+    Vector<Real> scal_diff_coefs(n_scal_diff_coefs);
+    pp.getarr("scal_diff_coefs",scal_diff_coefs,0,n_scal_diff_coefs);
+
+    int scalId = Density;
+
+    for (int i = 0; i < n_scal_diff_coefs; i++)
+    {
+        visc_coef[++scalId] = scal_diff_coefs[i];
+    }
+    //
+    // Set the coefficient for temperature.
+    //
+    if (do_temp)
+    {
+        Temp = ++scalId;
+        pp.get("temp_cond_coef",visc_coef[Temp]);
+    }
 }
 
 void
@@ -86,70 +357,58 @@ NavierStokes::initData ()
     //
     // Initialize the state and the pressure.
     //
-    int         ns       = NUM_STATE - BL_SPACEDIM;
-    const Real* dx       = geom.CellSize();
-    MultiFab&   S_new    = get_new_data(State_Type);
-    MultiFab&   P_new    = get_new_data(Press_Type);
-    const Real  cur_time = state[State_Type].curTime();
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
-    for (MFIter snewmfi(S_new,true); snewmfi.isValid(); ++snewmfi)
-    {
-        const Box& vbx = snewmfi.tilebox();
+    prob_initData();
+  
+    //
+    // Initialize GradP
+    //
+    computeGradP(state[Press_Type].curTime());
 
-        FArrayBox& Sfab = S_new[snewmfi];
-        FArrayBox& Pfab = P_new[snewmfi];
-
-        Sfab.setVal<RunOn::Host>(0.0,snewmfi.growntilebox(),0,S_new.nComp());
-        Pfab.setVal<RunOn::Host>(0.0,snewmfi.grownnodaltilebox(-1,P_new.nGrow()));
-
-        RealBox    gridloc = RealBox(vbx,geom.CellSize(),geom.ProbLo());
-        const int* lo      = vbx.loVect();
-        const int* hi      = vbx.hiVect();
-        const int* s_lo    = Sfab.loVect();
-        const int* s_hi    = Sfab.hiVect();
-        const int* p_lo    = Pfab.loVect();
-        const int* p_hi    = Pfab.hiVect();
-
-        FORT_INITDATA (&level,&cur_time,lo,hi,&ns,
-                       Sfab.dataPtr(Xvel),
-                       Sfab.dataPtr(BL_SPACEDIM),
-                       ARLIM(s_lo), ARLIM(s_hi),
-                       Pfab.dataPtr(),
-                       ARLIM(p_lo), ARLIM(p_hi),
-                       dx,gridloc.lo(),gridloc.hi() );
+    //
+    // Initialize averaging, if using
+    //
+    if (avg_interval > 0){
+      MultiFab&   Save_new    = get_new_data(Average_Type);
+      Save_new.setVal(0.);
     }
 
 #ifdef AMREX_USE_EB
-    set_body_state(S_new);
+    //
+    // Set EB covered cells to some typical value for that field 
+    // FIXME -- Not sure IAMR really needs this...   
+    {
+      MultiFab&   S_new    = get_new_data(State_Type);
+      set_body_state(S_new);
+    }
 #endif
 
 #ifdef BL_USE_VELOCITY
-    //
-    // We want to add the velocity from the supplied plotfile
-    // to what we already put into the velocity field via FORT_INITDATA.
-    //
-    // This code has a few drawbacks.  It assumes that the physical
-    // domain size of the current problem is the same as that of the
-    // one that generated the pltfile.  It also assumes that the pltfile
-    // has at least as many levels (with the same refinement ratios) as does
-    // the current problem.  If either of these are false this code is
-    // likely to core dump.
-    //
-    ParmParse pp("ns");
-
-    std::string velocity_plotfile;
-    pp.query("velocity_plotfile", velocity_plotfile);
-
-    std::string velocity_plotfile_xvel_name = "x_velocity";
-    pp.query("velocity_plotfile_xvel_name", velocity_plotfile_xvel_name);
-
-    Real velocity_plotfile_scale(1.0);
-    pp.query("velocity_plotfile_scale",velocity_plotfile_scale);
-
-    if (!velocity_plotfile.empty())
     {
+      //
+      // We want to add the velocity from the supplied plotfile
+      // to what we already put into the velocity field via FORT_INITDATA.
+      //
+      // This code has a few drawbacks.  It assumes that the physical
+      // domain size of the current problem is the same as that of the
+      // one that generated the pltfile.  It also assumes that the pltfile
+      // has at least as many levels (with the same refinement ratios) as does
+      // the current problem.  If either of these are false this code is
+      // likely to core dump.
+      //
+
+      ParmParse pp("ns");
+
+      std::string velocity_plotfile;
+      pp.query("velocity_plotfile", velocity_plotfile);
+
+      std::string velocity_plotfile_xvel_name = "x_velocity";
+      pp.query("velocity_plotfile_xvel_name", velocity_plotfile_xvel_name);
+
+      Real velocity_plotfile_scale(1.0);
+      pp.query("velocity_plotfile_scale",velocity_plotfile_scale);
+
+      if (!velocity_plotfile.empty())
+      {
         Print() << "initData: reading data from: " << velocity_plotfile << " ("
                 << velocity_plotfile_xvel_name << ")" << '\n';
 
@@ -175,30 +434,30 @@ NavierStokes::initData ()
 	      else
 	       Print() << "Found " << velocity_plotfile_xvel_name << ", idX = " << idX << '\n';
 
-        MultiFab tmp(S_new.boxArray(), S_new.DistributionMap(), 1, 0);
+	MultiFab& S_new = get_new_data(State_Type);
+        MultiFab  tmp(S_new.boxArray(), S_new.DistributionMap(), 1, 0);
         for (int i = 0; i < BL_SPACEDIM; i++)
         {
 	    amrData.FillVar(tmp, level, plotnames[idX+i], 0);
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
-	    for (MFIter mfi(tmp,true); mfi.isValid(); ++mfi)
-	    {
-	        const Box& bx = mfi.tilebox();
-                FArrayBox& tfab = tmp[mfi];
-                tfab.mult(velocity_plotfile_scale, bx, 0, 1);
-                S_new[mfi].plus(tfab, bx, 0, Xvel+i, 1);
-	    }
+
+	    MultiFab::Saxpy(S_new, velocity_plotfile_scale, tmp, 0, Xvel+i, 1, 0)
 
 	    amrData.FlushGrids(idX+i);
         }
 
 	Print() << "initData: finished init from velocity_plotfile" << '\n';
+      }
     }
 #endif /*BL_USE_VELOCITY*/
 
+    //
+    // Make rho MFs with filled ghost cells
+    // Not really sure why these are needed as opposed to just filling the
+    // the ghost cells in state and using that.
+    //
     make_rho_prev_time();
     make_rho_curr_time();
+
     //
     // Initialize divU and dSdt.
     //
@@ -212,20 +471,14 @@ NavierStokes::initData ()
         state[State_Type].setTimeLevel(curTime,dt,dt);
 
         //Make sure something reasonable is in diffn_ec
-        calcDiffusivity(cur_time);
+        calcDiffusivity(curTime);
 
-        calc_divu(cur_time,dtin,Divu_new);
+        calc_divu(curTime,dtin,Divu_new);
 
         if (have_dsdt)
             get_new_data(Dsdt_Type).setVal(0);
     }
 
-    if (state[Press_Type].descriptor()->timeType() == StateDescriptor::Point)
-    {
-        get_new_data(Dpdt_Type).setVal(0);
-    }
-
-    is_first_step_after_regrid = false;
     old_intersect_new          = grids;
 
 #ifdef AMREX_PARTICLES
@@ -306,7 +559,7 @@ NavierStokes::advance (Real time,
     calcDiffusivity(prev_time);
     MultiFab::Copy(*viscnp1_cc, *viscn_cc, 0, 0, 1, viscn_cc->nGrow());
     MultiFab::Copy(*diffnp1_cc, *diffn_cc, 0, 0, num_diff, diffn_cc->nGrow());
-    
+
     // Add this AFTER advance_setup()
     if (verbose)
     {
@@ -317,6 +570,7 @@ NavierStokes::advance (Real time,
 
     //
     // Compute traced states for normal comp of velocity at half time level.
+    // Returns best estimate for new timestep.
     //
     Real dt_test = predict_velocity(dt);
     //
@@ -338,8 +592,8 @@ NavierStokes::advance (Real time,
         MultiFab& S_old = get_old_data(State_Type);
 	// NOTE have_divu is now a static var in NSBase
         mac_project(time,dt,S_old,&mac_rhs,umac_n_grow,true);
-    } else { 
-	create_umac_grown(umac_n_grow);	
+    } else {
+	create_umac_grown(umac_n_grow);
     }
     //
     // Advect velocities.
@@ -408,7 +662,9 @@ NavierStokes::advance (Real time,
         if (verbose)
         {
             Print() << "NavierStokes::advance(): before nodal projection " << std::endl;
-            printMaxValues();
+            printMaxVel();
+	    // New P, Gp get updated in the projector (below). Check old here.
+	    printMaxGp(false);
         }
 
         //
@@ -421,7 +677,7 @@ NavierStokes::advance (Real time,
     }
 
 #ifdef AMREX_PARTICLES
-    if (theNSPC() != 0 and NavierStokes::initial_iter != true)
+    if (theNSPC() != 0 and NavierStokes::initial_step != true)
     {
         theNSPC()->AdvectWithUmac(u_mac, level, dt);
     }
@@ -434,135 +690,11 @@ NavierStokes::advance (Real time,
 
     if (verbose)
     {
-        Print() << "NavierStokes::advance(): after velocity update" << std::endl;
+        Print() << "NavierStokes::advance(): exiting." << std::endl;
         printMaxValues();
     }
 
     return dt_test;  // Return estimate of best new timestep.
-}
-
-//
-// Predict the edge velocities which go into forming u_mac.  This
-// function also returns an estimate of dt for use in variable timesteping.
-//
-
-Real
-NavierStokes::predict_velocity (Real  dt)
-{
-    BL_PROFILE("NavierStokes::predict_velocity()");
-
-    if (verbose) Print() << "... predict edge velocities\n";
-    //
-    // Get simulation parameters.
-    //
-    const int   nComp          = BL_SPACEDIM;
-    const Real* dx             = geom.CellSize();
-    const Real  prev_time      = state[State_Type].prevTime();
-    const Real  prev_pres_time = state[Press_Type].prevTime();
-    //
-    // Compute viscous terms at level n.
-    // Ensure reasonable values in 1 grow cell.  Here, do extrap for
-    // c-f/phys boundary, since we have no interpolator fn, also,
-    // preserve extrap for corners at periodic/non-periodic intersections.
-    //
-    MultiFab visc_terms(grids,dmap,nComp,1,MFInfo(), Factory());
-    if (be_cn_theta != 1.0)
-    {
-	  getViscTerms(visc_terms,Xvel,nComp,prev_time);
-    }
-    else
-    {
-	  visc_terms.setVal(0);
-    }
-
-    FillPatchIterator U_fpi(*this,visc_terms,Godunov::hypgrow(),prev_time,State_Type,Xvel,BL_SPACEDIM);
-    MultiFab& Umf=U_fpi.get_mf();
-
-    // Floor small values of states to be extrapolated
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
-    for (MFIter mfi(Umf,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
-        Box gbx=mfi.growntilebox(Godunov::hypgrow());
-        auto const& fab_a = Umf.array(mfi);
-        AMREX_HOST_DEVICE_FOR_4D ( gbx, BL_SPACEDIM, i, j, k, n,
-        {
-            auto& val = fab_a(i,j,k,n);
-            val = amrex::Math::abs(val) > 1.e-20 ? val : 0;
-        });
-    }
-
-    FillPatchIterator S_fpi(*this,visc_terms,1,prev_time,State_Type,Density,NUM_SCALARS);
-    MultiFab& Smf=S_fpi.get_mf();
-
-    //
-    // Compute "grid cfl number" based on cell-centered time-n velocities
-    //
-    auto umax = VectorMaxAbs({&Umf},FabArrayBase::mfiter_tile_size,0,BL_SPACEDIM,Umf.nGrow());
-
-    Real cflmax = dt*umax[0]/dx[0];
-    for (int d=1; d<BL_SPACEDIM; ++d)
-    {
-        cflmax = std::max(cflmax,dt*umax[d]/dx[d]);
-    }
-    Real tempdt = cflmax==0 ? change_max : std::min(change_max,cfl/cflmax);
-
-
-#if AMREX_USE_EB
-
-    Vector<BCRec> math_bcs(AMREX_SPACEDIM);
-    math_bcs = fetchBCArray(State_Type,Xvel,AMREX_SPACEDIM);
-
-    MOL::ExtrapVelToFaces( Umf,
-                           D_DECL(u_mac[0], u_mac[1], u_mac[2]),
-                           geom, math_bcs );
-#else
-    //
-    // Non-EB version
-    //
-    MultiFab Gp(grids,dmap,BL_SPACEDIM,1);
-    getGradP(Gp, prev_pres_time);
-
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
-    {
-        FArrayBox tforces;
-        Vector<int> bndry[BL_SPACEDIM];
-
-        for (MFIter U_mfi(Umf,true); U_mfi.isValid(); ++U_mfi)
-        {
-            Box bx=U_mfi.tilebox();
-            FArrayBox& Ufab = Umf[U_mfi];
-
-            if (getForceVerbose) {
-                Print() << "---\nA - Predict velocity:\n Calling getForce...\n";
-            }
-	    const Box& forcebx = grow(bx,1);
-	    tforces.resize(forcebx,AMREX_SPACEDIM);
-            getForce(tforces,bx,1,Xvel,BL_SPACEDIM,prev_time,Ufab,Smf[U_mfi],0);
-
-            //
-            // Compute the total forcing.
-            //
-            godunov->Sum_tf_gp_visc(tforces,0,visc_terms[U_mfi],0,Gp[U_mfi],0,rho_ptime[U_mfi],0);
-
-            D_TERM(bndry[0] = fetchBCArray(State_Type,bx,0,1);,
-                   bndry[1] = fetchBCArray(State_Type,bx,1,1);,
-                   bndry[2] = fetchBCArray(State_Type,bx,2,1););
-
-            //  1. compute slopes
-            //  2. trace state to cell edges
-            godunov->ExtrapVelToFaces(bx, dx, dt,
-                                      D_DECL(u_mac[0][U_mfi], u_mac[1][U_mfi], u_mac[2][U_mfi]),
-                                      D_DECL(bndry[0],        bndry[1],        bndry[2]),
-                                      Ufab, tforces);
-        }
-    } // end OMP parallel region
-#endif
-
-    return dt*tempdt;
 }
 
 //
@@ -581,7 +713,6 @@ NavierStokes::scalar_advection (Real dt,
     // Get simulation parameters.
     //
     const int   num_scalars    = lscalar - fscalar + 1;
-    const Real* dx             = geom.CellSize();
     const Real  prev_time      = state[State_Type].prevTime();
 
     //
@@ -616,25 +747,13 @@ NavierStokes::scalar_advection (Real dt,
     // Compute the advective forcing.
     //
     {
-        FillPatchIterator S_fpi(*this,visc_terms,Godunov::hypgrow(),prev_time,State_Type,fscalar,num_scalars);
+        FillPatchIterator S_fpi(*this,visc_terms,godunov_hyp_grow,prev_time,State_Type,fscalar,num_scalars);
         MultiFab& Smf=S_fpi.get_mf();
 
         // Floor small values of states to be extrapolated
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
-        for (MFIter mfi(Smf,true); mfi.isValid(); ++mfi)
-        {
-            Box gbx=mfi.growntilebox(Godunov::hypgrow());
-            auto fab = Smf.array(mfi);
-            AMREX_HOST_DEVICE_FOR_4D ( gbx, num_scalars, i, j, k, n,
-            {
-                auto& val = fab(i,j,k,n);
-                val = std::abs(val) > 1.e-20 ? val : 0;
-            });
-        }
+	floor(Smf);
 
-        FillPatchIterator U_fpi(*this,visc_terms,Godunov::hypgrow(),prev_time,State_Type,Xvel,BL_SPACEDIM);
+        FillPatchIterator U_fpi(*this,visc_terms,godunov_hyp_grow,prev_time,State_Type,Xvel,BL_SPACEDIM);
         const MultiFab& Umf=U_fpi.get_mf();
 
 
@@ -644,10 +763,6 @@ NavierStokes::scalar_advection (Real dt,
         //////////////////////////////////////////////////////////////////////////////
 
         const Box& domain = geom.Domain();
-
-        Vector<BCRec> math_bc(num_scalars);
-        math_bc = fetchBCArray(State_Type,fscalar,num_scalars);
-
 
         MultiFab cfluxes[AMREX_SPACEDIM];
         MultiFab edgstate[AMREX_SPACEDIM];
@@ -660,14 +775,11 @@ NavierStokes::scalar_advection (Real dt,
             edgstate[i].define(ba, dmap, num_scalars, nghost, MFInfo(), Factory());
         }
 
-        Vector<BCRec> math_bcs(num_scalars);
-        math_bcs = fetchBCArray(State_Type, fscalar, num_scalars);
-
         MOL::ComputeAofs(*aofs, fscalar, num_scalars, Smf, 0,
                          D_DECL(u_mac[0],u_mac[1],u_mac[2]),
                          D_DECL(edgstate[0],edgstate[1],edgstate[2]), 0, false,
                          D_DECL(cfluxes[0],cfluxes[1],cfluxes[2]), 0,
-                         math_bcs, geom  );
+                         m_bcrec_scalars, m_bcrec_scalars_d.dataPtr(), geom  );
 
         if (do_reflux)
         {
@@ -680,60 +792,92 @@ NavierStokes::scalar_advection (Real dt,
         //////////////////////////////////////////////////////////////////////////////
         //  NON-EB ALGORITHM
         //////////////////////////////////////////////////////////////////////////////
+        MultiFab cfluxes[AMREX_SPACEDIM];
+        MultiFab edgestate[AMREX_SPACEDIM];
+	MultiFab forcing_term( grids, dmap, num_scalars, nGrowF );
+
+        // NO Gghost nodes???
+        int nghost = 0;
+        for (int i(0); i < AMREX_SPACEDIM; i++)
+        {
+            const BoxArray& ba = getEdgeBoxArray(i);
+            cfluxes[i].define(ba, dmap, num_scalars, nghost);
+            cfluxes[i].setVal(0.0);
+            edgestate[i].define(ba, dmap, num_scalars, nghost);
+        }
 
 #ifdef _OPENMP
-#pragma omp parallel
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         {
-
-            Vector<int> state_bc;
-            FArrayBox tforces;
-            FArrayBox cfluxes[BL_SPACEDIM];
-            FArrayBox edgstate[BL_SPACEDIM];
-
-            for (MFIter S_mfi(Smf,true); S_mfi.isValid(); ++S_mfi)
+            for (MFIter S_mfi(Smf,TilingIfNotGPU()); S_mfi.isValid(); ++S_mfi)
             {
-                const Box bx = S_mfi.tilebox();
+                const Box& gbx = S_mfi.growntilebox(nGrowF);
 
-                if (getForceVerbose) {
+                if (getForceVerbose)
+                {
                     Print() << "---" << '\n' << "C - scalar advection:" << '\n'
                             << " Calling getForce..." << '\n';
                 }
-		const Box& forcebx = grow(bx,1);
-		tforces.resize(forcebx,num_scalars);
-                getForce(tforces,bx,nGrowF,fscalar,num_scalars,prev_time,Umf[S_mfi],Smf[S_mfi],0);
 
-                for (int d=0; d<BL_SPACEDIM; ++d)
+                getForce(forcing_term[S_mfi],gbx,fscalar,num_scalars,
+			 prev_time,Umf[S_mfi],Smf[S_mfi],0);
+
+                for (int n=0; n<num_scalars; ++n)
                 {
-                    const Box& ebx = amrex::surroundingNodes(bx,d);
-                    cfluxes[d].resize(ebx,num_scalars);
-                    edgstate[d].resize(ebx,num_scalars);
-                }
+                    // FIXME: Loop rqd b/c function does not take array conserv_diff
+		    auto const& tf    = forcing_term.array(S_mfi,n);
+                    auto const& visc  = visc_terms.const_array(S_mfi,n);
 
-                for (int i=0; i<num_scalars; ++i) { // FIXME: Loop rqd b/c function does not take array conserv_diff
-                    int use_conserv_diff = (advectionType[fscalar+i] == Conservative) ? 1 : 0;
-                    godunov->Sum_tf_divu_visc(Smf[S_mfi],i,tforces,i,1,visc_terms[S_mfi],i,
-                                              (*divu_fp)[S_mfi],0,rho_ptime[S_mfi],0,use_conserv_diff);
-                }
 
-                state_bc = fetchBCArray(State_Type,bx,fscalar,num_scalars);
+                    if (advectionType[fscalar+n] == Conservative)
+                    {
+                        auto const& divu  = divu_fp -> const_array(S_mfi);
+                        auto const& S     = Smf.array(S_mfi);
 
-                godunov->AdvectScalars(bx, dx, dt,
-                                       D_DECL(  area[0][S_mfi],  area[1][S_mfi],  area[2][S_mfi]),
-                                       D_DECL( u_mac[0][S_mfi], u_mac[1][S_mfi], u_mac[2][S_mfi]), 0,
-                                       D_DECL(      cfluxes[0],      cfluxes[1],      cfluxes[2]), 0,
-                                       D_DECL(     edgstate[0],     edgstate[1],     edgstate[2]), 0,
-                                       Smf[S_mfi], 0, num_scalars, tforces, 0, (*divu_fp)[S_mfi], 0,
-                                       (*aofs)[S_mfi], fscalar, advectionType, state_bc, FPU, volume[S_mfi]);
+                        amrex::ParallelFor(gbx, [tf, visc, S, divu]
+                        AMREX_GPU_DEVICE (int i, int j, int k ) noexcept
+                        {
+			    tf(i,j,k) += visc(i,j,k) - S(i,j,k) * divu(i,j,k);
+                        });
+		    }
+                    else
+                    {
+                        auto const& rho   = rho_ptime.const_array(S_mfi);
 
-                if (do_reflux) {
-                  for (int d=0; d<BL_SPACEDIM; ++d) {
-                    const Box& ebx = S_mfi.nodaltilebox(d);
-                    (fluxes[d])[S_mfi].copy<RunOn::Host>(cfluxes[d],ebx,0,ebx,0,num_scalars);
-                  }
+                        amrex::ParallelFor(gbx, [tf, visc, rho]
+                        AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                        {
+                            tf(i,j,k) = ( tf(i,j,k) + visc(i,j,k) ) / rho(i,j,k);
+                        });
+		    }
+
                 }
             }
-        } // OMP parallel loop
+        }
+
+        amrex::Gpu::DeviceVector<int> iconserv;
+        iconserv.resize(num_scalars, 0);
+	// does this actually put data in GPU memory?
+        for (int comp = 0; comp < num_scalars; ++comp)
+        {
+            iconserv[comp] = (advectionType[fscalar+comp] == Conservative) ? 1 : 0;
+	}
+    
+
+        Godunov::ComputeAofs(*aofs, fscalar, num_scalars,
+                             Smf, 0,
+                             AMREX_D_DECL( u_mac[0], u_mac[1], u_mac[2] ),
+                             AMREX_D_DECL( edgestate[0], edgestate[1], edgestate[2] ), 0, false,
+                             AMREX_D_DECL( cfluxes[0], cfluxes[1], cfluxes[2] ), 0,
+                             forcing_term, 0, *divu_fp, m_bcrec_scalars_d.dataPtr(),
+			     geom, iconserv, dt, godunov_use_ppm, godunov_use_forces_in_trans, false );
+
+        if (do_reflux)
+        {
+            for (int d = 0; d < AMREX_SPACEDIM; ++d)
+                MultiFab::Copy(fluxes[d], cfluxes[d], 0, 0, num_scalars, 0 );
+	}
 #endif
     } // FillPathIterator
 
@@ -875,7 +1019,6 @@ NavierStokes::scalar_diffusion_update (Real dt,
         const bool add_old_time_divFlux = true;
 
         const int betaComp = 0;
-        const int visc_coef_comp = sigma;
         const int Rho_comp = Density;
 	const int bc_comp  = sigma;
 
@@ -908,17 +1051,27 @@ NavierStokes::scalar_diffusion_update (Real dt,
 
 	    for (MFIter fmfi(*fluxn[d]); fmfi.isValid(); ++fmfi)
 	    {
-	      const Box& ebox = (*fluxn[d])[fmfi].box();//fmfi.tilebox();
+	      const Box& ebox = (*fluxn[d])[fmfi].box();
 
 	      fluxtot.resize(ebox,1);
-	      fluxtot.copy<RunOn::Host>((*fluxn[d])[fmfi],ebox,0,ebox,0,1);
-	      fluxtot.plus<RunOn::Host>((*fluxnp1[d])[fmfi],ebox,0,0,1);
+	      Elixir fdata_i = fluxtot.elixir();
+
+	      auto const& ftot = fluxtot.array();
+	      auto const& fn   = fluxn[d]->array(fmfi);
+	      auto const& fnp1 = fluxnp1[d]->array(fmfi);
+
+	      amrex::ParallelFor(ebox, [ftot, fn, fnp1 ]
+	      AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+	      {
+		ftot(i,j,k) = fn(i,j,k) + fnp1(i,j,k);
+	      });
 
 	      if (level < parent->finestLevel())
-		fluxes[fmfi].copy<RunOn::Host>(fluxtot);
+		fluxes[fmfi].copy<RunOn::Gpu>(fluxtot);
 
+	      //fixme - not sure what FineAdd does exactly, presumable okay wo sync here
 	      if (level > 0)
-		getViscFluxReg().FineAdd(fluxtot,d,fmfi.index(),0,sigma,1,dt,RunOn::Host);
+		getViscFluxReg().FineAdd(fluxtot,d,fmfi.index(),0,sigma,1,dt,RunOn::Gpu);
 	    }
 
 	    if (level < parent->finestLevel())
@@ -949,14 +1102,7 @@ NavierStokes::velocity_diffusion_update (Real dt)
     {
         int rho_flag = (do_mom_diff == 0) ? 1 : 3;
 
-        MultiFab* delta_rhs = 0;
-        if (S_in_vel_diffusion && have_divu)
-        {
-            delta_rhs = new MultiFab(grids,dmap,BL_SPACEDIM,0, MFInfo(),Factory());
-            delta_rhs->setVal(0);
-        }
-
-	FluxBoxes fb_viscn, fb_viscnp1;
+ 	FluxBoxes fb_viscn, fb_viscnp1;
         MultiFab** loc_viscn   = 0;
         MultiFab** loc_viscnp1 = 0;
 
@@ -967,13 +1113,9 @@ NavierStokes::velocity_diffusion_update (Real dt)
         viscTime = state[State_Type].curTime();
         loc_viscnp1 = fb_viscnp1.define(this);
         getViscosity(loc_viscnp1, viscTime);
-	
-        diffuse_velocity_setup(dt, delta_rhs, loc_viscn, loc_viscnp1);
 
         diffusion->diffuse_velocity(dt,be_cn_theta,get_rho_half_time(),rho_flag,
-                                    delta_rhs,loc_viscn,viscn_cc,loc_viscnp1,viscnp1_cc);
-
-        delete delta_rhs;
+                                    nullptr,loc_viscn,viscn_cc,loc_viscnp1,viscnp1_cc);
     }
 
     if (verbose)
@@ -985,49 +1127,6 @@ NavierStokes::velocity_diffusion_update (Real dt)
 
 	Print() << "NavierStokes:velocity_diffusion_update(): lev: " << level
 		       << ", time: " << run_time << '\n';
-    }
-}
-
-void
-NavierStokes::diffuse_velocity_setup (Real       dt,
-                                      MultiFab*& delta_rhs,
-                                      MultiFab**& viscn,
-                                      MultiFab**& viscnp1)
-{
-    if (S_in_vel_diffusion && have_divu)
-    {
-        //
-        // Include div mu S*I terms in rhs
-        //  (i.e. make nonzero delta_rhs to add into RHS):
-        //
-        // The scalar and tensor solvers incorporate the relevant pieces of
-        //  of Div(tau), provided the flow is divergence-free.  However, if
-        //  Div(U) =/= 0, there is an additional piece not accounted for,
-        //  which is of the form A.Div(U).
-        //
-        // Now we only use the tensor solver.
-        // For history, before for constant viscosity, Div(tau)_i
-        //  = Lapacian(U_i) + mu/3 d[Div(U)]/dx_i.
-        // Now because  mu not constant,
-        //  Div(tau)_i = d[ mu(du_i/dx_j + du_j/dx_i) ]/dx_i - 2mu/3 d[Div(U)]/dx_i
-        //
-        // As a convenience, we treat this additional term as a "source" in
-        // the diffusive solve, computing Div(U) in the "normal" way we
-        // always do--via a call to calc_divu.  This routine computes delta_rhs
-        // if necessary, and stores it as an auxilliary rhs to the viscous solves.
-        // This is a little strange, but probably not bad.
-        //
-        const Real time = state[State_Type].prevTime();
-
-        MultiFab divmusi(grids,dmap,BL_SPACEDIM,0,MFInfo(),Factory());
-
-        diffusion->compute_divmusi(time,viscn,divmusi);
-        divmusi.mult((-2./3.)*(1.0-be_cn_theta),0,BL_SPACEDIM,0);
-                      (*delta_rhs).plus(divmusi,0,BL_SPACEDIM,0);
-
-        diffusion->compute_divmusi(time+dt,viscnp1,divmusi);
-        divmusi.mult((-2./3.)*be_cn_theta,0,BL_SPACEDIM,0);
-                (*delta_rhs).plus(divmusi,0,BL_SPACEDIM,0);
     }
 }
 
@@ -1070,7 +1169,7 @@ NavierStokes::MaxVal (const std::string& name,
         const Real* dat = fab.dataPtr();
         const int*  dlo = fab.loVect();
         const int*  dhi = fab.hiVect();
-	      const Box&  bx  = grids[i];
+	const Box&  bx  = grids[i];
         const int*  lo  = bx.loVect();
         const int*  hi  = bx.hiVect();
 
@@ -1095,12 +1194,6 @@ NavierStokes::sum_integrated_quantities ()
     Real trac = 0.0;
     Real energy = 0.0;
     Real mgvort = 0.0;
-#if defined(DO_IAMR_FORCE)
-    Real forcing = 0.0;
-#endif
-#if (BL_SPACEDIM==3)
-    Real udotlapu = 0.0;
-#endif
 
     for (int lev = 0; lev <= finest_level; lev++)
     {
@@ -1109,29 +1202,13 @@ NavierStokes::sum_integrated_quantities ()
 	trac += ns_level.volWgtSum("tracer",time);
         energy += ns_level.volWgtSum("energy",time);
         mgvort = std::max(mgvort,ns_level.MaxVal("mag_vort",time));
-#if defined(DO_IAMR_FORCE)
-        forcing += ns_level.volWgtSum("forcing",time);
-#endif
-#if (BL_SPACEDIM==3)
-        udotlapu += ns_level.volWgtSum("udotlapu",time);
-#endif
     }
 
     Print() << '\n';
     Print().SetPrecision(12) << "TIME= " << time << " MASS= " << mass << '\n';
     Print().SetPrecision(12) << "TIME= " << time << " TRAC= " << trac << '\n';
-    Print().SetPrecision(12) << "TIME= " << time << " KENG= " << energy << '\n';
+    Print().SetPrecision(12) << "TIME= " << time << " KINETIC ENERGY= " << energy << '\n';
     Print().SetPrecision(12) << "TIME= " << time << " MAGVORT= " << mgvort << '\n';
-    Print().SetPrecision(12) << "TIME= " << time << " ENERGY= " << energy << '\n';
-#if defined(DO_IAMR_FORCE)
-    //NOTE: FORCING_T gives only the energy being injected by the forcing
-    //      term used for generating turbulence in probtype 14, 15.
-    //      Defaults to 0 for other probtypes.
-    Print().SetPrecision(12) << "TIME= " << time << " FORCING_T= " << forcing << '\n';
-#endif
-#if (BL_SPACEDIM==3)
-    Print().SetPrecision(12) << "TIME= " << time << " UDOTLAPU= " << udotlapu << '\n';
-#endif
 }
 
 void
@@ -1411,37 +1488,15 @@ NavierStokes::writePlotFile (const std::string& dir,
     //
     // Cull data from derived variables.
     //
-    Real plot_time;
-
     if (derive_names.size() > 0)
     {
 	for (std::list<std::string>::const_iterator it = derive_names.begin(), end = derive_names.end();
              it != end;
              ++it)
 	{
-            if (*it == "avg_pressure" ||
-                *it == "gradpx"       ||
-                *it == "gradpy"       ||
-                *it == "gradpz")
-            {
-                if (state[Press_Type].descriptor()->timeType() ==
-                    StateDescriptor::Interval)
-                {
-                    plot_time = cur_time;
-                }
-                else
-                {
-                    int f_lev = parent->finestLevel();
-                    plot_time = getLevel(f_lev).state[Press_Type].curTime();
-                }
-            }
-            else
-            {
-                plot_time = cur_time;
-            }
 	    const DeriveRec* rec = derive_lst.get(*it);
 	    ncomp = rec->numDerive();
-	    auto derive_dat = derive(*it,plot_time,nGrow);
+	    auto derive_dat = derive(*it,cur_time,nGrow);
 	    MultiFab::Copy(plotMF,*derive_dat,0,cnt,ncomp,nGrow);
 	    cnt += ncomp;
 	}
@@ -1462,6 +1517,19 @@ NavierStokes::writePlotFile (const std::string& dir,
     std::string TheFullPath = FullPath;
     TheFullPath += BaseName;
     VisMF::Write(plotMF,TheFullPath,how,true);
+
+    //
+    // Put particles in plotfile?
+    // Used in regression testing, but also useful if you want to use
+    // AMReX's tool particle_compare without writing a full checkpoint
+    //
+#ifdef AMREX_PARTICLES
+    if (level == 0 && theNSPC() != 0 && particles_in_plotfile)
+    {
+      theNSPC()->Checkpoint(dir,"Particles");
+    }
+#endif
+
 }
 
 std::unique_ptr<MultiFab>
@@ -1495,6 +1563,7 @@ NavierStokes::derive (const std::string& name,
 void
 NavierStokes::post_init (Real stop_time)
 {
+
     if (level > 0)
         //
         // Nothing to sync up at level > 0.
@@ -1507,7 +1576,8 @@ NavierStokes::post_init (Real stop_time)
     Vector<int>  nc_save(finest_level+1);
     //
     // Ensure state is consistent, i.e. velocity field is non-divergent,
-    // Coarse levels are fine level averages, pressure is zero.
+    // pressure & Gradp have been initialized, Coarse levels are fine
+    // level averages.
     //
     post_init_state();
     //
@@ -1523,20 +1593,19 @@ NavierStokes::post_init (Real stop_time)
     //
     if (sum_interval > 0)
         sum_integrated_quantities();
-#if (BL_SPACEDIM==3)
-    //
-    // Derive turbulent statistics
-    //
-    if (turb_interval > 0)
-        sum_turbulent_quantities();
-#ifdef SUMJET
-    //
-    // Derive turbulent statistics for the round jet
-    //
-    if (jet_interval > 0)
-        sum_jet_quantities();
-#endif
-#endif
+
+    if (NavierStokesBase::avg_interval > 0)
+    {
+      NavierStokesBase::time_avg.resize(finest_level+1);
+      NavierStokesBase::time_avg_fluct.resize(finest_level+1);
+      NavierStokesBase::dt_avg.resize(finest_level+1);
+      NavierStokesBase::time_avg[level] = 0.;
+      NavierStokesBase::time_avg_fluct[level] = 0.;
+      NavierStokesBase::dt_avg[level] = 0.;
+      const amrex::Real dt_level = parent->dtLevel(level);
+      time_average(NavierStokesBase::time_avg[level], NavierStokesBase::time_avg_fluct[level], NavierStokesBase::dt_avg[level], dt_level);
+    }
+
 }
 
 //
@@ -1548,13 +1617,8 @@ NavierStokes::post_init_press (Real&        dt_init,
                                Vector<int>&  nc_save,
                                Vector<Real>& dt_save)
 {
-    if ( init_iter <= 0 ){
-      // make sure there's not NANs in old pressure field
-      // end up with P_old = P_new as is the case when doing initial iters
-      MultiFab& p_old=get_old_data(Press_Type);
-      MultiFab& p_new=get_new_data(Press_Type);
-      MultiFab::Copy(p_old, p_new, 0, 0, 1, p_new.nGrow());
-
+    if ( init_iter <= 0 )
+    {
       parent->setDtLevel(dt_save);
       parent->setNCycle(nc_save);
 
@@ -1597,7 +1661,7 @@ NavierStokes::post_init_press (Real&        dt_init,
         }
 
         //
-        // This constructs a guess at P, also sets p_old == p_new.
+        // Constructs a guess at P.
         //
         Vector<MultiFab*> sig(finest_level+1, nullptr);
 
@@ -1612,6 +1676,11 @@ NavierStokes::post_init_press (Real&        dt_init,
                                           strt_time,have_divu);
         }
 
+	// FIXME? -- TODO check if this is really needed here.
+	// All of State_type and Divu_Type gets reset.
+	// NodalProj averages down phi (sync is an increment) and Pnew coming in
+        // has been averaged down, so with linearity of average, P & Gp shouldn't need it
+	// Think we really only need to average down dsdt
         for (int k = finest_level-1; k >= 0; k--)
         {
             getLevel(k).avgDown();
@@ -1629,7 +1698,7 @@ NavierStokes::post_init_press (Real&        dt_init,
             MultiFab& S_old = get_old_data(State_Type);
             MultiFab::Xpay(S_new, dt_init, S_old, Xvel, Xvel, AMREX_SPACEDIM, 0);
 
-            Print() << "After nodal projection:" << std::endl;
+            Print() << "After sync projection and avgDown:" << std::endl;
             printMaxValues();
         }
 
@@ -1638,10 +1707,22 @@ NavierStokes::post_init_press (Real&        dt_init,
             //
             // Reset state variables to initial time, but
             // do not reset pressure variable, only pressure time.
+	    // do not reset dsdt variable, only dsdt time.
             //
+	    // The reset of data is ultimately achieved via a swap and swap back to
+	    // preserve old_data. resetState ends up calling swap(old_data, new_data)
+	    // but then advance_setup also ends up calling swap(old_data, new_data).
+            // Since pressure is not reset, after advance_setup, the next step will
+            // progress with p_old==p_new.
             getLevel(k).resetState(strt_time, dt_init, dt_init);
         }
 
+	// Make sure rho_ctime matches reset State
+	// FIXME? Why isn't this called on all levels when rho has been altered
+	// on all levels via advance, avgDown and resetState called on all levels.
+	// Just testing things out with the regression tests shows that this is
+	// needed (for both EB and nonEB), just doing level 0 is fine, and moving it
+	// outside the init_iters loop is fine (no changes to any regression tests).
         make_rho_curr_time();
 
         NavierStokes::initial_iter = false;
@@ -1654,11 +1735,6 @@ NavierStokes::post_init_press (Real&        dt_init,
     for (int k = 0; k <= finest_level; k++)
     {
         getLevel(k).setTimeLevel(strt_time,dt_save[k],dt_save[k]);
-        if (state[Press_Type].descriptor()->timeType() == StateDescriptor::Point)
-        {
-            getLevel(k).state[Press_Type].setNewTimeLevel(.5*dt_init);
-            getLevel(k).get_old_data(Dpdt_Type).setVal(0);
-        }
     }
 
     parent->setDtLevel(dt_save);
@@ -1759,23 +1835,23 @@ NavierStokes::mac_sync ()
       {
 	iconserved++;
 #ifdef _OPENMP
-#pragma omp parallel
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-        {
-	  FArrayBox delta_ssync;
+	for (MFIter mfi(S_new,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+	{
+	    const Box&  bx       = mfi.tilebox();
+	    auto const& rho      = S_new.array(mfi,Density);
+	    auto const& Snew     = S_new.array(mfi,istate);
+	    auto const& dSsync   = DeltaSsync->array(mfi);
+	    auto const& drhosync = Ssync.array(mfi,Density-AMREX_SPACEDIM);
+	    auto const& ssync    = Ssync.array(mfi,istate-AMREX_SPACEDIM);
 
-	  for (MFIter Smfi(S_new,true); Smfi.isValid(); ++Smfi)
-	  {
-	    const Box& bx = Smfi.tilebox();
-
-            delta_ssync.resize(bx,1);
-            // FIXME MSD: Combine these
-            delta_ssync.copy<RunOn::Host>(S_new[Smfi], bx, istate, bx, 0, 1);
-            delta_ssync.divide<RunOn::Host>(S_new[Smfi], bx, Density, 0, 1);
-            delta_ssync.mult<RunOn::Host>(Ssync[Smfi],bx,Density-BL_SPACEDIM,0,1);
-            (*DeltaSsync)[Smfi].copy<RunOn::Host>(delta_ssync,bx,0,bx,iconserved,1);
-            Ssync[Smfi].minus<RunOn::Host>(delta_ssync,bx,0,istate-BL_SPACEDIM,1);
-          }
+	    amrex::ParallelFor(bx, [rho, Snew, dSsync, drhosync, ssync, iconserved ]
+	    AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+	    {
+	      dSsync(i,j,k,iconserved) = Snew(i,j,k) * drhosync(i,j,k) / rho(i,j,k);
+	      ssync(i,j,k) -= dSsync(i,j,k);
+	    });
 	}
       }
     }
@@ -1783,18 +1859,20 @@ NavierStokes::mac_sync ()
     if (do_mom_diff == 1)
     {
 #ifdef _OPENMP
-#pragma omp parallel
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-      for (MFIter Vsyncmfi(Vsync,true); Vsyncmfi.isValid(); ++Vsyncmfi)
+      for (MFIter mfi(rho_ctime, TilingIfNotGPU()); mfi.isValid(); ++mfi)
       {
-	FArrayBox&       vfab   = Vsync[Vsyncmfi];
-	const FArrayBox& rhofab = rho_ctime[Vsyncmfi];
-	const Box&       bx     = Vsyncmfi.tilebox();
-
-        // FIXME MSD: Combine these
-	D_TERM(vfab.divide<RunOn::Host>(rhofab,bx,0,Xvel,1);,
-	       vfab.divide<RunOn::Host>(rhofab,bx,0,Yvel,1);,
-	       vfab.divide<RunOn::Host>(rhofab,bx,0,Zvel,1););
+	const Box& bx = mfi.tilebox();
+	auto const& rho_c    = rho_ctime.array(mfi);
+	auto const& vsync    = Vsync.array(mfi,Xvel);
+	amrex::ParallelFor(bx, [rho_c, vsync]
+	AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+	  for (int n = 0; n < AMREX_SPACEDIM; n++) {
+	    vsync(i,j,k,n) /= rho_c(i,j,k);
+	  }
+	});
       }
     }
     //
@@ -1873,7 +1951,6 @@ NavierStokes::mac_sync ()
         MultiFab *alpha_in = 0;
         const int alphaComp = 0;
         int betaComp = 0;
-        int visc_coef_comp = state_ind;
 
         diffuse_comp[0] = is_diffusive[BL_SPACEDIM+sigma];
 
@@ -1926,31 +2003,14 @@ NavierStokes::mac_sync ()
       if (istate != Density && advectionType[istate] == Conservative)
       {
 	iconserved++;
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
-	for (MFIter SsyncMfi(Ssync,true); SsyncMfi.isValid(); ++SsyncMfi)
-        {
-	  const Box& bx = SsyncMfi.tilebox();
-	  Ssync[SsyncMfi].plus<RunOn::Host>((*DeltaSsync)[SsyncMfi], bx,
-                                            iconserved, istate-BL_SPACEDIM, 1);
-	}
+
+	MultiFab::Add(Ssync,*DeltaSsync,iconserved,istate-AMREX_SPACEDIM,1,0);
       }
     }
     //
     // Add the sync correction to the state.
     //
-    for (int sigma  = 0; sigma < numscal; sigma++)
-    {
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
-      for (MFIter S_newmfi(S_new,true); S_newmfi.isValid(); ++S_newmfi)
-      {
-	S_new[S_newmfi].plus<RunOn::Host>(Ssync[S_newmfi],S_newmfi.tilebox(),
-                                          sigma,BL_SPACEDIM+sigma,1);
-      }
-    }
+    MultiFab::Add(S_new,Ssync,0,AMREX_SPACEDIM,numscal,0);
     //
     // Update rho_ctime after rho is updated with Ssync.
     //
@@ -1988,13 +2048,7 @@ NavierStokes::mac_sync ()
 		 numscal,1,mult,sync_bc.dataPtr());
 
       MultiFab& Sf_new = fine_lev.get_new_data(State_Type);
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
-      for (MFIter mfi(Sf_new,true); mfi.isValid(); ++mfi){
-	const Box& bx = mfi.tilebox();
-	Sf_new[mfi].plus<RunOn::Host>(sync_incr[mfi],bx,0,Density,numscal);
-      }
+      MultiFab::Add(Sf_new,sync_incr,0,Density,numscal,0);
 
       fine_lev.make_rho_curr_time();
       fine_lev.incrRhoAvg(sync_incr,Density-BL_SPACEDIM,1.0);
@@ -2040,35 +2094,28 @@ NavierStokes::reflux ()
     if (do_mom_diff == 0)
     {
 #ifdef _OPENMP
-#pragma omp parallel
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-        for (MFIter Vsyncmfi(Vsync,true); Vsyncmfi.isValid(); ++Vsyncmfi)
-        {
-            FArrayBox&       vfab  = Vsync[Vsyncmfi];
-            const FArrayBox& rhfab = Rh[Vsyncmfi];
-	    const Box&       bx    = Vsyncmfi.tilebox();
+      for (MFIter mfi(Vsync,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+      {
+         const Box&  bx      = mfi.tilebox();
+         auto const& vsync   = Vsync.array(mfi);
+         auto const& rhohalf = Rh.array(mfi);
 
-            // FIXME MSD: Combine these
-            D_TERM(vfab.divide<RunOn::Host>(rhfab,bx,0,Xvel,1);,
-                   vfab.divide<RunOn::Host>(rhfab,bx,0,Yvel,1);,
-                   vfab.divide<RunOn::Host>(rhfab,bx,0,Zvel,1););
-        }
+         amrex::ParallelFor(bx, AMREX_SPACEDIM, [vsync, rhohalf]
+         AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+         {
+            vsync(i,j,k,n) /= rhohalf(i,j,k);
+         });
+      }
     }
 
-    for (int istate = BL_SPACEDIM; istate < NUM_STATE; istate++)
+    for (int istate = AMREX_SPACEDIM; istate < NUM_STATE; istate++)
     {
-        if (advectionType[istate] == NonConservative)
-        {
-            const int sigma = istate -  BL_SPACEDIM;
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
-            for (MFIter Ssyncmfi(Ssync,true); Ssyncmfi.isValid(); ++Ssyncmfi)
-            {
-		const Box& bx = Ssyncmfi.tilebox();
-                Ssync[Ssyncmfi].divide<RunOn::Host>(Rh[Ssyncmfi],bx,0,sigma,1);
-            }
-        }
+      if (advectionType[istate] == NonConservative)
+      {
+	MultiFab::Divide(Ssync,Rh,0,istate-AMREX_SPACEDIM,1,0);
+      }
     }
 
     fr_adv.Reflux(Vsync,volume,scale,0,0,BL_SPACEDIM,geom);
@@ -2082,27 +2129,34 @@ NavierStokes::reflux ()
 
     baf.coarsen(fine_ratio);
 
-    // fixme: Tile? Perhaps just OMP? problem dependent?
 #ifdef _OPENMP
-#pragma omp parallel
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for (MFIter Vsyncmfi(Vsync,true); Vsyncmfi.isValid(); ++Vsyncmfi)
-    {
-        const int i     = Vsyncmfi.index();
-        FArrayBox& vfab = Vsync[Vsyncmfi];
-        FArrayBox& sfab = Ssync[Vsyncmfi];
+   {
+      std::vector< std::pair<int,Box> > isects;
+      for (MFIter mfi(Vsync,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+      {
+         const Box& bx = mfi.growntilebox();
+         auto const& vsync   = Vsync.array(mfi);
+         auto const& ssync   = Ssync.array(mfi);
+         int nstate          = NUM_STATE;
 
-        BL_ASSERT(grids[i].contains(Vsyncmfi.tilebox()));
+         baf.intersections(bx,isects);
 
-	const std::vector< std::pair<int,Box> >& isects =  baf.intersections(Vsyncmfi.tilebox());
-
-        for (int ii = 0, N = isects.size(); ii < N; ii++)
-        {
-          // FIXME MSD: Combine these
-          vfab.setVal<RunOn::Host>(0,isects[ii].second,0,BL_SPACEDIM);
-          sfab.setVal<RunOn::Host>(0,isects[ii].second,0,NUM_STATE-BL_SPACEDIM);
+         for (int it = 0, N = isects.size(); it < N; it++) {
+            amrex::ParallelFor(isects[it].second, [vsync, ssync, nstate]
+            AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+               for (int n = 0; n < AMREX_SPACEDIM; n++) {
+                  vsync(i,j,k,n) = 0.0;
+               }
+               for (int n = 0; n < nstate-AMREX_SPACEDIM; n++) {
+                  ssync(i,j,k,n) = 0.0;
+               }
+            });
         }
-    }
+      }
+   }
 }
 
 //
@@ -2115,46 +2169,12 @@ NavierStokes::avgDown ()
     if (level == parent->finestLevel())
         return;
 
-    NavierStokes&   crse_lev = getLevel(level  );
-    NavierStokes&   fine_lev = getLevel(level+1);
+    auto&   fine_lev = getLevel(level+1);
     //
-    // Average down the states at the new time.
+    // Average down the State and Pressure at the new time.
     //
-    MultiFab& S_crse = get_new_data(State_Type);
-    MultiFab& S_fine = fine_lev.get_new_data(State_Type);
+    avgDown_StatePress();
 
-    average_down(S_fine, S_crse, 0, S_crse.nComp());
-
-    //
-    // Now average down pressure over time n-(n+1) interval.
-    //
-    MultiFab&       P_crse      = get_new_data(Press_Type);
-    MultiFab&       P_fine_init = fine_lev.get_new_data(Press_Type);
-    MultiFab&       P_fine_avg  = fine_lev.p_avg;
-    MultiFab&       P_fine      = initial_step ? P_fine_init : P_fine_avg;
-    // const BoxArray& P_fgrids    = fine_lev.state[Press_Type].boxArray();
-
-    // FIXME? Doesn't work. Get error:
-    //0::Assertion `ebflag.box().contains(amrex::enclosedCells(bx))' failed, file "../../../amrex_fork/amrex_tensorFlux/Src/EB/AMReX_EBFArrayBox.cpp", line 23 !!!
-    //
-    // BoxArray crse_P_fine_BA = P_fgrids; crse_P_fine_BA.coarsen(fine_ratio);
-    // MultiFab crse_P_fine(crse_P_fine_BA,fine_lev.DistributionMap(),1,0,MFInfo(),fine_lev.Factory());
-// #ifdef _OPENMP
-// #pragma omp parallel
-// #endif
-//     for (MFIter mfi(crse_P_fine,true); mfi.isValid(); ++mfi)
-//     {
-// 	const Box& bx = mfi.tilebox();
-
-// 	injectDown(bx,crse_P_fine[mfi],P_fine[mfi],fine_ratio);
-//     }
-//     P_crse.copy(crse_P_fine, parent->Geom(level).periodicity());
-
-//     crse_P_fine.clear();
-
-    // This ignores EB, but *think* it should be okay because nodes are directly copied
-    // NOTE: this fills ghost cells, but amrex::average_down does not.
-    amrex::average_down_nodal(P_fine,P_crse,fine_ratio);
     //
     // Next average down divu and dSdT at new time.
     //
@@ -2171,15 +2191,6 @@ NavierStokes::avgDown ()
         MultiFab& Dsdt_fine = fine_lev.get_new_data(Dsdt_Type);
 
 	average_down(Dsdt_fine, Dsdt_crse, 0, 1);
-	//amrex::average_down(Dsdt_fine, Dsdt_crse, fine_lev.geom, crse_lev.geom,
-	//		    0, 1, fine_ratio);
-    }
-    //
-    // Fill rho_ctime at the current and finer levels with the correct data.
-    //
-    for (int lev = level; lev <= parent->finestLevel(); lev++)
-    {
-        getLevel(lev).make_rho_curr_time();
     }
 }
 
@@ -2189,14 +2200,15 @@ NavierStokes::avgDown ()
 
 void
 NavierStokes::calc_divu (Real      time,
-                         Real      dt,
+                         Real      /*dt*/,
                          MultiFab& divu)
 {
     BL_PROFILE("NavierStokes::calc_divu()");
 
     if (have_divu)
     {
-        divu.setVal(0);
+      // Don't think we need this here, but then ghost cells are uninitialized
+      // divu.setVal(0);
 
         if (do_temp && visc_coef[Temp] > 0.0)
         {
@@ -2209,62 +2221,63 @@ NavierStokes::calc_divu (Real      time,
 
             FillPatchIterator temp_fpi(*this,divu,0,time,State_Type,Temp,1);
 	    MultiFab& tmf = temp_fpi.get_mf();
-#ifdef AMREX_USE_EB
-	    EB_set_covered(tmf,COVERED_VAL);
-#endif
+
+	    Real THERMO_cp = 1004.6;
 
 #ifdef _OPENMP
-#pragma omp parallel
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-            for ( MFIter rho_mfi(rhotime,true); rho_mfi.isValid(); ++rho_mfi)
+            for ( MFIter rho_mfi(rhotime,TilingIfNotGPU()); rho_mfi.isValid(); ++rho_mfi)
             {
-                FArrayBox& divufab = divu[rho_mfi];
-		const Box& bx = rho_mfi.tilebox();
-
-                // FIXME MSD: Combine these
-                divufab.divide<RunOn::Host>(rhotime[rho_mfi],bx,0,0,1);
-                divufab.divide<RunOn::Host>(tmf[rho_mfi],bx,0,0,1);
-            }
+	        const Box&  bx  = rho_mfi.tilebox();
+		auto const& div = divu.array(rho_mfi);
+		auto const& rho = rhotime.array(rho_mfi);
+		auto const& temp = tmf.array(rho_mfi);
 #ifdef AMREX_USE_EB
-	    EB_set_covered(divu,COVERED_VAL);
+		auto const& ebfactory = dynamic_cast<EBFArrayBoxFactory const&>(Factory());
+		auto const& flagfab = ebfactory.getMultiEBCellFlagFab()[rho_mfi];
+		auto const& flag    = flagfab.const_array();
+
+		if (flagfab.getType(bx) == FabType::covered)
+		{
+		  amrex::ParallelFor(bx, [div]
+		  AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+		  {
+		    div( i, j, k ) = COVERED_VAL;
+		  });
+		}
+		else if (flagfab.getType(bx) != FabType::regular)
+		{
+		  auto vfrac = ebfactory.getVolFrac().const_array(rho_mfi);
+
+		  amrex::ParallelFor(bx, [div, rho, temp, vfrac, THERMO_cp]
+		  AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+		  {
+		    if ( vfrac(i,j,k) > 0.0 )
+		    {
+		      div(i,j,k) /= ( rho(i,j,k)*temp(i,j,k)*THERMO_cp );
+		    }
+		    else
+		    {
+		      div(i,j,k) = COVERED_VAL;
+		    }
+		  });
+		}
+		else
 #endif
-	    //            Real THERMO_cp_inv = 1.0 / 1004.6;
-            divu.mult(1/THERMO_cp);
-
+		{
+		  amrex::ParallelFor(bx, [div, rho, temp, THERMO_cp]
+		  AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+		  {
+		    div(i,j,k) /= ( rho(i,j,k)*temp(i,j,k)*THERMO_cp );
+		  });
+		}
+	    }
         }
-    }
-}
-
-//
-// Default dSdt is set to zero.
-//
-
-void
-NavierStokes::calc_dsdt (Real      time,
-                         Real      dt,
-                         MultiFab& dsdt)
-{
-    if (have_divu && have_dsdt)
-    {
-        dsdt.setVal(0);
-
-        if (do_temp)
-        {
-            MultiFab& Divu_new = get_new_data(Divu_Type);
-            MultiFab& Divu_old = get_old_data(Divu_Type);
-#ifdef _OPENMP
-#pragma omp parallel
-#endif
-            for (MFIter mfi(dsdt,true); mfi.isValid(); ++mfi)
-            {
-                const Box& vbx     = mfi.tilebox();
-                FArrayBox& dsdtfab = dsdt[mfi];
-                // FIXME MSD: Combine these
-                dsdtfab.copy<RunOn::Host>(Divu_new[mfi],vbx,0,vbx,0,1);
-                dsdtfab.minus<RunOn::Host>(Divu_old[mfi],vbx,0,0,1);
-                dsdtfab.divide<RunOn::Host>(dt,vbx,0,1);
-            }
-        }
+	else
+	{
+	  divu.setVal(0);
+	}
     }
 }
 
@@ -2312,25 +2325,10 @@ NavierStokes::getViscTerms (MultiFab& visc_terms,
 
 	auto whichTime = which_time(State_Type,time);
 	BL_ASSERT(whichTime == AmrOldTime || whichTime == AmrNewTime);
-	
+
 	auto viscosityCC = (whichTime == AmrOldTime ? viscn_cc : viscnp1_cc);
-	
+
         diffusion->getTensorViscTerms(visc_terms,time,viscosity,viscosityCC,0);
-
-        //
-        // Add Div(u) term if desired, if this is velocity, and if Div(u)
-        // is nonzero.  If const-visc, term is mu.Div(u)/3, else
-        // it's -Div(mu.Div(u).I)*2/3
-        //
-        if (have_divu && S_in_vel_diffusion)
-        {
-            MultiFab divmusi(grids,dmap,BL_SPACEDIM,1,MFInfo(),Factory());
-
-            diffusion->compute_divmusi(time,viscosity,divmusi);
-            divmusi.mult((-2./3.),0,BL_SPACEDIM,0);
-
-            visc_terms.plus(divmusi,Xvel,BL_SPACEDIM,0);
-        }
     }
     //
     // Get Scalar Diffusive Terms
@@ -2374,7 +2372,7 @@ NavierStokes::getViscTerms (MultiFab& visc_terms,
 }
 
 //
-// Functions calcViscosity/Diffusivity and getViscosity/Diffusivity are  
+// Functions calcViscosity/Diffusivity and getViscosity/Diffusivity are
 // for calculating variable viscosity and diffusivity. Here we default to
 // constant visc/diff and set the variable viscosity and diffusivity arrays
 // to the values in visc_coef and diff_coef.
@@ -2385,9 +2383,9 @@ NavierStokes::getViscTerms (MultiFab& visc_terms,
 //
 void
 NavierStokes::calcViscosity (const Real time,
-                             const Real dt,
-                             const int  iteration,
-                             const int  ncycle)
+                             const Real /*dt*/,
+                             const int  /*iteration*/,
+                             const int  /*ncycle*/)
 {
     if (is_diffusive[Xvel])
     {
@@ -2452,15 +2450,15 @@ NavierStokes::getViscosity (MultiFab* viscosity[BL_SPACEDIM],
     // BL_ASSERT(whichTime == AmrOldTime || whichTime == AmrNewTime);
 
     // MultiFab *visc = (whichTime == AmrOldTime ? viscn_cc : viscnp1_cc);
-  
+
     // For non-const viscosity, uncomment above and add interp from
-    // cell-center/centroid to faces. 
+    // cell-center/centroid to faces.
     // But here we simply do constant viscosity.
 
     for (int dir=0; dir<AMREX_SPACEDIM; dir++) {
       viscosity[dir]->setVal(visc_coef[Xvel], 0, viscosity[dir]->nComp(), viscosity[dir]->nGrow());
     }
-	  
+
     if (do_LES)
     {
       FluxBoxes mu_LES(this,1,0);
@@ -2468,9 +2466,9 @@ NavierStokes::getViscosity (MultiFab* viscosity[BL_SPACEDIM],
       for (int dir=0; dir<AMREX_SPACEDIM; dir++) {
 	mu_LES_mf[dir]->setVal(0., 0, mu_LES_mf[dir]->nComp(), mu_LES_mf[dir]->nGrow());
       }
-      
+
       NavierStokesBase::calc_mut_LES(mu_LES_mf,time);
-      
+
       for (int dir=0; dir<AMREX_SPACEDIM; dir++) {
 	MultiFab::Add(*viscosity[dir], *mu_LES_mf[dir], 0, 0, 1, 0);
       }
@@ -2479,7 +2477,7 @@ NavierStokes::getViscosity (MultiFab* viscosity[BL_SPACEDIM],
 
 void
 NavierStokes::getDiffusivity (MultiFab* diffusivity[BL_SPACEDIM],
-                              const Real time,
+                              const Real /*time*/,
                               const int state_comp,
                               const int dst_comp,
                               const int ncomp)
@@ -2494,11 +2492,11 @@ NavierStokes::getDiffusivity (MultiFab* diffusivity[BL_SPACEDIM],
     // //
     // const TimeLevel whichTime = which_time(State_Type,time);
     // BL_ASSERT(whichTime == AmrOldTime || whichTime == AmrNewTime);
-    
+
     // MultiFab *diff = (whichTime == AmrOldTime ? diffn_cc : diffnp1_cc);
 
     // For non-const diffusivity, uncomment above and add interp from
-    // cell-center/centroid to faces. 
+    // cell-center/centroid to faces.
     // But here we simply do constant diffusivity.
 
     for (int dir = 0; dir < BL_SPACEDIM; dir++)
@@ -2507,48 +2505,3 @@ NavierStokes::getDiffusivity (MultiFab* diffusivity[BL_SPACEDIM],
     }
 }
 
-void
-NavierStokes::center_to_edge_plain (const FArrayBox& ccfab,
-                                    FArrayBox&       ecfab,
-				    const Box&       bx,
-                                    int              sComp,
-                                    int              dComp,
-                                    int              nComp)
-{
-    //
-    // This routine fills an edge-centered FAB from a cell-centered FAB.
-    // It assumes that the data in all cells of the cell-centered FAB is
-    // valid and totally ignores any concept of boundary conditions.
-    // It is assummed that the cell-centered FAB fully contains the
-    // edge-centered FAB.  If anything special needs to be done at boundaries,
-    // a varient of this routine needs to be written.  See
-    // HeatTransfer::center_to_edge_fancy().
-    //
-    const Box&      ccbox = ccfab.box();
-    const IndexType ixt   = ecfab.box().ixType();
-    //
-    // Get direction for interpolation to edges
-    //
-    int dir = -1;
-    for (int d = 0; d < BL_SPACEDIM; d++)
-        if (ixt.test(d))
-            dir = d;
-    //
-    // Miscellanious checks
-    //
-    BL_ASSERT(!(ixt.cellCentered()) && !(ixt.nodeCentered()));
-    BL_ASSERT(grow(ccbox,-BASISV(dir)).contains(enclosedCells(bx)));
-    BL_ASSERT(sComp+nComp <= ccfab.nComp() && dComp+nComp <= ecfab.nComp());
-
-    //
-    // Shift cell-centered data to edges
-    //
-    const int isharm = def_harm_avg_cen2edge;
-
-    cen2edg(bx.loVect(), bx.hiVect(),
-	    ARLIM(ccfab.loVect()), ARLIM(ccfab.hiVect()),
-	    ccfab.dataPtr(sComp),
-	    ARLIM(ecfab.loVect()), ARLIM(ecfab.hiVect()),
-	    ecfab.dataPtr(dComp),
-	    &nComp, &dir, &isharm);
-}

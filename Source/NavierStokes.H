@@ -5,6 +5,7 @@
 #include <NavierStokesBase.H>
 #include <AMReX_LevelBld.H>
 
+
 class NSBld
     :
     public amrex::LevelBld
@@ -49,6 +50,10 @@ public:
     //
     virtual void initData () override;
     //
+    // Problem initialization functions
+    //
+#include "prob_init.H"
+    //
     // Write plot file stuff to specified directory.
     //
     virtual void writePlotFile (const std::string& dir,
@@ -85,6 +90,24 @@ public:
                           int  iteration,
                           int  ncycle) override;
 
+    ////////////////////////////////////////////////////////////////////////////
+    //    NavierStokesBase public virtual functions                           //
+    ////////////////////////////////////////////////////////////////////////////
+
+    //
+    // Compute the mac sync correction.
+    //
+    virtual void mac_sync () override;
+    //
+    // Reflux function.
+    //
+    virtual void reflux () override;
+    //
+    // Calculate divU, which sets them to zero by default.
+    //
+    virtual void calc_divu (amrex::Real      time,
+			    amrex::Real      dt,
+			    amrex::MultiFab& fab) override;
 
     ////////////////////////////////////////////////////////////////////////////
     //    NavierStokes public static functions                                //
@@ -94,23 +117,29 @@ public:
     // Define data descriptors.
     //
     static void variableSetUp ();
-    //
-    // Cleanup data descriptors at end of run.
-    //
-    static void variableCleanUp ();
 
-    //
-    // Predict face velocities (before projection), estimate current cfl
-    // from t^n cell-centered velocities (plus cfl and change_max)
-    //
-    amrex::Real predict_velocity (amrex::Real dt);
+    // FIXME? - size m_bc_values better.
+    // Max possible number of scalars is 4: Density, 2 Tracers, Temperature
+    static constexpr int NUM_STATE_MAX = AMREX_SPACEDIM+4;
+    static amrex::GpuArray<amrex::GpuArray<amrex::Real, NUM_STATE_MAX>, AMREX_SPACEDIM*2>
+    //static auto
+    get_bc_values () { return m_bc_values; }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //    NavierStokes public functions                                       //
+    ////////////////////////////////////////////////////////////////////////////
+
     //
     // Advect scalars.
     //
     void scalar_advection (amrex::Real dt,
                            int  first_scalar,
                            int  last_scalar);
-  
+    //
+    void scalar_diffusion_update (amrex::Real dt,
+                                  int  first_scalar,
+                                  int  last_scalar);
+
 protected:
 
     ////////////////////////////////////////////////////////////////////////////
@@ -118,18 +147,6 @@ protected:
     ////////////////////////////////////////////////////////////////////////////
 
     virtual void avgDown () override; // Average down for all the state types.
-    //
-    // Calculate divU, which sets them to zero by default.
-    //
-    virtual void calc_divu (amrex::Real      time,
-			    amrex::Real      dt,
-			    amrex::MultiFab& fab) override;
-    //
-    // Calculate dSdT, which sets them to zero by default.
-    //
-    virtual void calc_dsdt (amrex::Real      time,
-			    amrex::Real      dt,
-			    amrex::MultiFab& fab) override;
     //
     // Calculate nonuniform viscosity and diffusivity
     //
@@ -150,14 +167,6 @@ protected:
 			       int       num_comp,
 			       amrex::Real      time) override;
     //
-    // Compute the mac sync correction.
-    //
-    virtual void mac_sync () override;
-    //
-    // Reflux function.
-    //
-    virtual void reflux () override;
-    //
     virtual void sum_integrated_quantities () override;
     //
     virtual void velocity_diffusion_update (amrex::Real dt) override;
@@ -166,22 +175,18 @@ protected:
     //    NavierStokes protected static functions                             //
     ////////////////////////////////////////////////////////////////////////////
 
+    virtual void errorEst (amrex::TagBoxArray& tags,
+                           int                 clearval,
+                           int                 tagval,
+                           amrex::Real         time,
+                           int                 n_error_buf,
+                           int                 ngrow) override;
+
     static void Initialize ();   // Read input file
+    static void Initialize_specific ();   // Read input file specific to IAMR
     static void Finalize ();
 
 private:
-
-    void center_to_edge_plain (const amrex::FArrayBox& ccfab,
-                               amrex::FArrayBox&       ecfab,
-			       const amrex::Box&       bx,
-			       int              sComp,
-                               int              dComp,
-                               int              nComp);
-   
-    void diffuse_velocity_setup (amrex::Real       dt,
-				 amrex::MultiFab*& delta_rhs,
-				 amrex::MultiFab**& viscn,
-				 amrex::MultiFab**& viscnp1); 
 
     void getDiffusivity (amrex::MultiFab*  diffusivity[BL_SPACEDIM],
 			 const amrex::Real time,
@@ -208,14 +213,27 @@ private:
                         int  first_scalar,
                         int  last_scalar);
     //
-    void scalar_diffusion_update (amrex::Real dt,
-                                  int  first_scalar,
-                                  int  last_scalar);
-    //
     // Define error estimators
     //
     static void error_setup ();
 
+    ///////////////////
+    // Private data  //
+    ///////////////////
+
+    //
+    // Holds info for dynamically generated error estimators
+    //
+    static amrex::Vector<amrex::AMRErrorTag> errtags;
+
+    //
+    // Hold external Dirichlet BC values
+    //
+    // FIXME? - dymanic size. And fix in NavierStokes.cpp NS_bcfill as well!
+    // Max possible number of scalars is 4: Density, 2 Tracers, Temperature
+    //static amrex::GpuArray<amrex::GpuArray<amrex::Real, AMREX_SPACEDIM+4>,
+    static amrex::GpuArray<amrex::GpuArray<amrex::Real, NUM_STATE_MAX>,
+    			   AMREX_SPACEDIM*2> m_bc_values;
 };
 
 #endif /*_NavierStokes_H_*/
