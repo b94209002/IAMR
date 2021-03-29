@@ -274,6 +274,37 @@ namespace derive_functions
 				  );
     });
   }
+  //
+  // Liquid water content
+  //
+  void derliquid (const Box& bx, FArrayBox& derfab, int dcomp, int ncomp,
+                const FArrayBox& datfab, const Geometry& geomdata,
+                Real /*time*/, const int* /*bcrec*/, int /*level*/)
+
+  {
+    AMREX_ASSERT(derfab.box().contains(bx));
+    AMREX_ASSERT(datfab.box().contains(bx));
+
+    AMREX_D_TERM(const amrex::Real idx = geomdata.InvCellSize(0);,
+                 const amrex::Real idy = geomdata.InvCellSize(1);,
+                 const amrex::Real idz = geomdata.InvCellSize(2););	  
+
+    AMREX_ASSERT(derfab.nComp() >= dcomp + ncomp);
+    AMREX_ASSERT(datfab.nComp() >= 1);
+    AMREX_ASSERT(ncomp == 1);
+    auto const in_dat = datfab.array();
+    auto          der = derfab.array(dcomp);
+
+    amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+      const Real m = in_dat(i,j,k,0);
+      const Real d = in_dat(i,j,k,1);
+      const Real z = .5 * idz + k;
+
+      der(i,j,k) = std::min(0. ,m - d+z);
+    });	  
+  }
+
 
   //
   // Null function

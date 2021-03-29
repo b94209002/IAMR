@@ -502,14 +502,14 @@ NavierStokes::variableSetUp ()
                    dernull,the_same_box);
     derive_lst.addComponent("total_particle_count",desc_lst,State_Type,Density,1);
 #endif
-/*
+
     // 
     // Liquid water content  
     // 
     derive_lst.add("liquid_water",IndexType::TheCellType(),1,derliquid,the_same_box);
     derive_lst.addComponent("liquid_water",desc_lst,State_Type,Trac,1);
     derive_lst.addComponent("liquid_water",desc_lst,State_Type,Trac2,1);
-
+/*
     // 
     // Humidity  
     // 
