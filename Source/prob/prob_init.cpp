@@ -55,6 +55,13 @@ void NavierStokes::prob_initData ()
     // for Taylor-Green
     pp.query("velocity_factor",IC.v_x);
 
+    // For Rayleigh-Benard problem
+    pp.query("rho",IC.rho);
+    pp.query("d0",IC.tra1_0);
+    pp.query("dh",IC.tra1_1);
+    pp.query("m0",IC.tra2_0);
+    pp.query("mh",IC.tra2_1);
+
     //
     // Fill state and, optionally, pressure
     //
@@ -534,20 +541,17 @@ void NavierStokes::init_RayleighBenard (Box const& vbx,
   const Real Lx    = (probhi[0] - problo[0]);
 
 #if (AMREX_SPACEDIM == 2)
+
   amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
   {
     Real x = problo[0] + (i - domlo.x + 0.5)*dx[0];
     Real y = problo[1] + (j - domlo.y + 0.5)*dx[1];
 
-    const Real pertheight = 0.5 + IC.pertamp*(std::cos(2.0*Pi*x/Lx)
-                                              + std::cos(2.0*Pi*(Lx-x)/Lx));
+    const Real pert = 0.5 + IC.pertamp * amrex::Random();
 
-    scal(i,j,k,0) = IC.rho_1 + ((IC.rho_2-IC.rho_1)/2.0)*(1.0+std::tanh((y-pertheight)/IC.interface_width));
-    scal(i,j,k,1) = IC.tra_1 + ((IC.tra_2-IC.tra_1)/2.0)*(1.0+std::tanh((y-pertheight)/IC.interface_width));
-    for ( int nt=2; nt<nscal; nt++)
-    {
-      scal(i,j,k,nt) = 1.0;
-    }
+    scal(i,j,k,0) = IC.rho;
+    scal(i,j,k,1) = IC.tra1_0 + (IC.tra1_0-IC.tra1_1) * y - pert*exp(-y/dx[1]);
+    scal(i,j,k,2) = IC.tra2_0 + (IC.tra2_0-IC.tra2_1) * y + pert*exp(-y/dx[1]);
 
   });
 
@@ -581,17 +585,12 @@ void NavierStokes::init_RayleighBenard (Box const& vbx,
     Real y = problo[1] + (j - domlo.y + 0.5)*dx[1];
     Real z = problo[2] + (k - domlo.z + 0.5)*dx[2];
 
-    Real pert = ranampl * std::sin(2.0*Pi*x/Lx + ranphse1 )
-                        * std::sin(2.0*Pi*y/Ly + ranphse2 );
+    scal(i,j,k,0) = IC.rho;
+    Real pert = IC.pertamp * amrex::Random();  
+    scal(i,j,k,1) = IC.tra1_0 + (IC.tra1_0-IC.tra1_1) * z + pert*exp(-z/dx[1]);
+    pert = IC.pertamp * amrex::Random();
+    scal(i,j,k,2) = IC.tra2_0 + (IC.tra2_0-IC.tra2_1) * z + pert*exp(-z/dx[1]);
 
-    Real pertheight = splitz - IC.pertamp*pert;
-
-    scal(i,j,k,0) = IC.rho_1 + ((IC.rho_2-IC.rho_1)/2.0)*(1.0+std::tanh((z-pertheight)/IC.interface_width));
-    scal(i,j,k,1) = IC.tra_1 + ((IC.tra_2-IC.tra_1)/2.0)*(1.0+std::tanh((z-pertheight)/IC.interface_width));
-    for ( int nt=2; nt<nscal; nt++)
-    {
-      scal(i,j,k,nt) = 1.0;
-    }
   });
 
 #endif

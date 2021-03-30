@@ -33,6 +33,13 @@ struct InitialConditions
   amrex::Real tra_2 = 1.0;
   amrex::Real pertamp = 1.0;
 
+  // for Rayleigh-Bebard 
+  amrex::Real rho = 1.0;
+  amrex::Real tra1_0 = 0.0;
+  amrex::Real tra1_1 = 1.0;
+  amrex::Real tra2_0 = 0.0;
+  amrex::Real tra2_1 = 1.0;
+
 };
 
 //
