@@ -180,7 +180,14 @@ NavierStokesBase::getForce (FArrayBox&       force,
        });
      }
      else {
-       force.setVal<RunOn::Gpu>(0.0, bx, Xvel, AMREX_SPACEDIM);
+       amrex::ParallelFor(bx, [frc, scal, grav]
+       AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+       { 
+         // Real z = problo[2] + (k - domlo.z + 0.5)*dx[2]; 
+     	 frc(i,j,k,2) = std::max(scal(i,j,k,2), scal(i,j,k,1) );
+       });
+       // temp for Rayleigh-Benard 	     
+       // force.setVal<RunOn::Gpu>(0.0, bx, Xvel, AMREX_SPACEDIM);
        // amrex::ParallelFor(bx, AMREX_SPACEDIM, [frc]
        // AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept
        // {
