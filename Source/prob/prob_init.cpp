@@ -510,3 +510,90 @@ void NavierStokes::init_Euler (Box const& vbx,
     }
   });
 }
+
+void NavierStokes::init_RayleighBenard (Box const& vbx,
+                                        Array4<Real> const& press,
+                                        Array4<Real> const& vel,
+                                        Array4<Real> const& scal,
+                                        const int nscal,
+                                        Box const& domain,
+                                        GpuArray<Real, AMREX_SPACEDIM> const& dx,
+                                        GpuArray<Real, AMREX_SPACEDIM> const& problo,
+                                        GpuArray<Real, AMREX_SPACEDIM> const& probhi,
+                                        InitialConditions IC)
+{
+  const auto domlo = amrex::lbound(domain);
+
+  //
+  // Velocity already initialized to 0
+  //
+
+  //
+  // Scalars, ordered as Density, Tracer(s), Temp (if using)
+  //
+  const Real Lx    = (probhi[0] - problo[0]);
+
+#if (AMREX_SPACEDIM == 2)
+  amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+  {
+    Real x = problo[0] + (i - domlo.x + 0.5)*dx[0];
+    Real y = problo[1] + (j - domlo.y + 0.5)*dx[1];
+
+    const Real pertheight = 0.5 + IC.pertamp*(std::cos(2.0*Pi*x/Lx)
+                                              + std::cos(2.0*Pi*(Lx-x)/Lx));
+
+    scal(i,j,k,0) = IC.rho_1 + ((IC.rho_2-IC.rho_1)/2.0)*(1.0+std::tanh((y-pertheight)/IC.interface_width));
+    scal(i,j,k,1) = IC.tra_1 + ((IC.tra_2-IC.tra_1)/2.0)*(1.0+std::tanh((y-pertheight)/IC.interface_width));
+    for ( int nt=2; nt<nscal; nt++)
+    {
+      scal(i,j,k,nt) = 1.0;
+    }
+
+  });
+
+#elif (AMREX_SPACEDIM == 3)
+
+  const Real Ly    = (probhi[1] - problo[1]);
+  const Real splitz = 0.5*(problo[2] + probhi[2]);
+
+  Real rn;
+
+  // Create random amplitudes and phases for the perturbation
+
+  // This doens't work for OMP. Just hard-code results below.
+  // amrex::InitRandom(111397);
+  // rn = amrex::Random();
+  // const Real ranampl = 2.*(rn-0.5);
+
+  // rn = amrex::Random();
+  // const Real ranphse1 = 2.*Pi*rn;
+
+  // rn = amrex::Random();
+  // const Real ranphse2 = 2.*Pi*rn;
+
+  const Real ranampl = 2.*(0.6544437533747718 - 0.5);
+  const Real ranphse1 = 2.*Pi*0.1556190326530211;
+  const Real ranphse2 = 2.*Pi*0.4196144025537369;
+
+  amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+  {
+    Real x = problo[0] + (i - domlo.x + 0.5)*dx[0];
+    Real y = problo[1] + (j - domlo.y + 0.5)*dx[1];
+    Real z = problo[2] + (k - domlo.z + 0.5)*dx[2];
+
+    Real pert = ranampl * std::sin(2.0*Pi*x/Lx + ranphse1 )
+                        * std::sin(2.0*Pi*y/Ly + ranphse2 );
+
+    Real pertheight = splitz - IC.pertamp*pert;
+
+    scal(i,j,k,0) = IC.rho_1 + ((IC.rho_2-IC.rho_1)/2.0)*(1.0+std::tanh((z-pertheight)/IC.interface_width));
+    scal(i,j,k,1) = IC.tra_1 + ((IC.tra_2-IC.tra_1)/2.0)*(1.0+std::tanh((z-pertheight)/IC.interface_width));
+    for ( int nt=2; nt<nscal; nt++)
+    {
+      scal(i,j,k,nt) = 1.0;
+    }
+  });
+
+#endif
+}
+
