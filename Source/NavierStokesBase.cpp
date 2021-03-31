@@ -42,11 +42,19 @@ struct DummyFill           // Set 0.0 on EXT_DIR, nothing otherwise.
           const int* bc = bcr[n].data();
           for (int idir = 0; idir < AMREX_SPACEDIM; idir++) {
              if ((bc[idir] == amrex::BCType::ext_dir) and (iv[idir] < domlo[idir])) {
-                dest(iv, dcomp+n) = 0.0;
-             }
+                if (n == 1) {
+			dest(iv, dcomp+n) = 0.0;
+		} else if ( n == 2) { 
+			dest(iv, dcomp+n) = 0.0;
+		}
+   	     }
              if ((bc[idir + AMREX_SPACEDIM] == amrex::BCType::ext_dir) and (iv[idir] > domhi[idir])) {
-                dest(iv, dcomp+n) = 0.0;
-             }
+                if (n == 1) {
+                        dest(iv, dcomp+n) = 0.0;
+                } else if ( n == 2) {
+                        dest(iv, dcomp+n) = 0.0;
+                }
+	     }
           }
        }
     }
