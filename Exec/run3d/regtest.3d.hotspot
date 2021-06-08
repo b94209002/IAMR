@@ -3,8 +3,12 @@
 # INPUTS.3D.HOTSPOT - hot bubble rising
 #*******************************************************************************
 
+# Add temperature field
 ns.do_temp=1
 ns.temp_cond_coef=1.e-8
+# Add a second tracer
+ns.do_trac2 = 1
+ns.do_cons_trac2 = 1
 
 #NOTE: You may set *either* max_step or stop_time, or you may set them both.
 
@@ -92,7 +96,7 @@ ns.vel_visc_coef        = 0.001
 #*******************************************************************************
 
 # Diffusion coefficient for first scalar
-ns.scal_diff_coefs      = 0.001
+ns.scal_diff_coefs      = 0.001 0.002
 
 #*******************************************************************************
 

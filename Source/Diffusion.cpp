@@ -1175,9 +1175,6 @@ Diffusion::diffuse_tensor_Vsync (MultiFab&              Vsync,
     }
 }
 
-//
-// Used by PeleLM to sync species
-//
 void
 Diffusion::diffuse_Ssync (MultiFab&              Ssync,
                           int                    sigma,

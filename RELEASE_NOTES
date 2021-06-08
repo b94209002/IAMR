@@ -172,3 +172,30 @@ Many small updates to several parts of the code, including:
   -InflowForce
   -GPU fixes
   -Outflow BC solvers
+
+4/1/21
+Cleanup unused options, problems, and inputs files
+Fixes to ref_ratio=4 ghost cell bugs
+Port some initializtion kernels to C++
+Port some derived functions to C++
+Port boundary filling functions to C++
+Ghost cell filling bugs
+New options for controlling regridding
+Minor GPU and memory fixes
+Remove fortran probin files
+Various RZ fixes
+
+5/3/21
+Updates to EB to be compatible with AMReX changes
+Updates and bugfixes to EB advection algorithm
+Fix out of bounds issues related to inadequate number of ghost cells
+Misc GPU fixes
+New homogeneous isotropic turbulence test case
+
+6/2/21
+Changes to some MAC projectino parameters
+Fixed issues with some derived quantities
+Checkpoint bug fix
+Fixes to hydrodynamics for GPU and EB
+Updates to MOL algorithm
+Fix: properly merged in changes from development
