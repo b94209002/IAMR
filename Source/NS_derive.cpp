@@ -297,9 +297,8 @@ namespace derive_functions
     AMREX_ASSERT(derfab.box().contains(bx));
     AMREX_ASSERT(datfab.box().contains(bx));
 
-    AMREX_D_TERM(const amrex::Real idx = geomdata.InvCellSize(0);,
-                 const amrex::Real idy = geomdata.InvCellSize(1);,
-                 const amrex::Real idz = geomdata.InvCellSize(2););	  
+    const Real z_lo = geomdata.ProbLo(2);
+    const Real dz = geomdata.CellSize(2);	  
 
     AMREX_ASSERT(derfab.nComp() >= dcomp + ncomp);
     AMREX_ASSERT(datfab.nComp() >= 1);
@@ -309,7 +308,7 @@ namespace derive_functions
 
     amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-      const Real z = .5 * idz + k;
+      const Real z = z_lo + (k + .5) * dz;
       const Real m = in_dat(i,j,k,0) + M0 + dM*z;
       const Real d = in_dat(i,j,k,1) + D0 + dD*z;
 

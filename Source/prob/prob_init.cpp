@@ -63,6 +63,14 @@ void NavierStokes::prob_initData ()
     pp.query("meanFlowDir", IC.meanFlowDir);
     pp.query("meanFlowMag", IC.meanFlowMag);
 
+    // for Rayleigh-Benard
+    pp.query("D0", D0);
+    pp.query("dD", dD);
+    pp.query("M0", M0);
+    pp.query("dM", dM);
+    pp.query("N2", N2);
+    pp.query("omega", omega);
+
     //
     // Fill state and, optionally, pressure
     //
@@ -139,6 +147,12 @@ void NavierStokes::prob_initData ()
 			   S_new.array(mfi, Density), nscal,
 			   domain, dx, problo, probhi, IC);
 	}
+        else if ( 12 == probtype )
+        {
+          init_RayleighBenard(vbx, P_new.array(mfi), S_new.array(mfi, Xvel),
+                              S_new.array(mfi, Density), nscal,
+                              domain, dx, problo, probhi, IC);
+        }	
 	else
         {
             amrex::Abort("NavierStokes::prob_init: unknown probtype");
@@ -633,9 +647,9 @@ void NavierStokes::init_RayleighBenard (Box const& vbx,
 
     const Real pert = 0.5 + IC.pertamp * amrex::Random();
 
-    scal(i,j,k,0) = IC.rho;
-    scal(i,j,k,1) = IC.tra1_0 + (IC.tra1_0-IC.tra1_1) * y - pert*exp(-y/dx[1]);
-    scal(i,j,k,2) = IC.tra2_0 + (IC.tra2_0-IC.tra2_1) * y + pert*exp(-y/dx[1]);
+    scal(i,j,k,0) = 1.0;
+    scal(i,j,k,1) = pert*exp(-y/dx[1]);
+    scal(i,j,k,2) = pert*exp(-y/dx[1]);
 
   });
 
