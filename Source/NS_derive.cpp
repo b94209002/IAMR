@@ -293,6 +293,7 @@ namespace derive_functions
                 Real /*time*/, const int* /*bcrec*/, int /*level*/)
 
   {
+#include "prob_init.H"
     AMREX_ASSERT(derfab.box().contains(bx));
     AMREX_ASSERT(datfab.box().contains(bx));
 
@@ -308,11 +309,11 @@ namespace derive_functions
 
     amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-//      const Real z = .5 * idz + k;
-//      const Real m = in_dat(i,j,k,0) + M0 + dM*z;
-//      const Real d = in_dat(i,j,k,1) + D0 + dD*z;
+      const Real z = .5 * idz + k;
+      const Real m = in_dat(i,j,k,0) + M0 + dM*z;
+      const Real d = in_dat(i,j,k,1) + D0 + dD*z;
 
-//      der(i,j,k) = std::min(m, d - N2*z);
+      der(i,j,k) = std::min(m, d - N2*z);
     });	  
   }
 
