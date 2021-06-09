@@ -27,7 +27,6 @@ namespace {
     static int max_fmg_iter = -1;
     static int semicoarsening = false;
     static int max_semicoarsening_level = 0;
-    static int bottom_verbose = false;
 
     // Likely want these to match defaults in MacProjector
     static int          bottom_verbose(0);

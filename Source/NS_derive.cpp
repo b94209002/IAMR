@@ -308,11 +308,11 @@ namespace derive_functions
 
     amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-      const Real m = in_dat(i,j,k,0);
-      const Real d = in_dat(i,j,k,1);
-      const Real z = .5 * idz + k;
+//      const Real z = .5 * idz + k;
+//      const Real m = in_dat(i,j,k,0) + M0 + dM*z;
+//      const Real d = in_dat(i,j,k,1) + D0 + dD*z;
 
-      der(i,j,k) = std::min(0. ,m - d+z);
+//      der(i,j,k) = std::min(m, d - N2*z);
     });	  
   }
 

@@ -41,12 +41,6 @@ struct InitialConditions
   amrex::Real rvort = 0.07;
   amrex::Real forcevort = 6.0;
 
-  // for Rayleigh-Bebard 
-  amrex::Real rho = 1.0;
-  amrex::Real tra1_0 = 0.0;
-  amrex::Real tra1_1 = 1.0;
-  amrex::Real tra2_0 = 0.0;
-  amrex::Real tra2_1 = 1.0;
 };
 
 //
@@ -149,5 +143,13 @@ void init_RayleighBenard (amrex::Box const& vbx,
 // Problems parameters, to be read from inputs file
 //
 static int probtype;
+
+// For Rayleigh-Benard
+amrex::Real D0 = 0.0;
+amrex::Real dD = 1.0;
+amrex::Real M0 = 0.0;
+amrex::Real dM = -2.0;
+amrex::Real N2 = 1.0;
+amrex::Real omega = 0.0;
 
 #endif

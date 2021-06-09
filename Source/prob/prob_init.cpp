@@ -63,13 +63,6 @@ void NavierStokes::prob_initData ()
     pp.query("meanFlowDir", IC.meanFlowDir);
     pp.query("meanFlowMag", IC.meanFlowMag);
 
-    // For Rayleigh-Benard problem
-    pp.query("rho",IC.rho);
-    pp.query("d0",IC.tra1_0);
-    pp.query("dh",IC.tra1_1);
-    pp.query("m0",IC.tra2_0);
-    pp.query("mh",IC.tra2_1);    
-
     //
     // Fill state and, optionally, pressure
     //
@@ -675,11 +668,11 @@ void NavierStokes::init_RayleighBenard (Box const& vbx,
     Real y = problo[1] + (j - domlo.y + 0.5)*dx[1];
     Real z = problo[2] + (k - domlo.z + 0.5)*dx[2];
 
-    scal(i,j,k,0) = IC.rho;
+    scal(i,j,k,0) = 1.0;
     Real pert = IC.pertamp * amrex::Random();
-    scal(i,j,k,1) = IC.tra1_0 + (IC.tra1_0-IC.tra1_1) * z + pert*exp(-z/dx[1]);
+    scal(i,j,k,1) = pert*exp(-z/dx[2]);
     pert = IC.pertamp * amrex::Random();
-    scal(i,j,k,2) = IC.tra2_0 + (IC.tra2_0-IC.tra2_1) * z + pert*exp(-z/dx[1]);
+    scal(i,j,k,2) = pert*exp(-z/dx[2]);
 
   });
 

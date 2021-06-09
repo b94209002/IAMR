@@ -489,6 +489,13 @@ NavierStokes::variableSetUp ()
     derive_lst.addComponent("total_particle_count",desc_lst,State_Type,Density,1);
 #endif
 
+    // 
+    // Liquid water content  
+    // 
+    derive_lst.add("liquid_water",IndexType::TheCellType(),1,derliquid,the_same_box);
+    derive_lst.addComponent("liquid_water",desc_lst,State_Type,Tracer,1);
+    derive_lst.addComponent("liquid_water",desc_lst,State_Type,Tracer2,1);
+
     //
     // **************  DEFINE ERROR ESTIMATION QUANTITIES  *************
     //
