@@ -25,8 +25,8 @@ namespace {
     static int agglomeration = 1;
     static int consolidation = 1;
     static int max_fmg_iter = -1;
-    static int semicoarsening = false;
-    static int max_semicoarsening_level = 0;
+//    static int semicoarsening = false;
+//    static int max_semicoarsening_level = 0;
 
     // Likely want these to match defaults in MacProjector
     static int          bottom_verbose(0);
@@ -100,8 +100,8 @@ void mlmg_mac_level_solve (Amr* parent, const MultiFab* cphi, const BCRec& phys_
 	pp.query( "bottom_atol"   , bottom_atol );
 	pp.query( "bottom_solver" , bottom_solver );
 
-        ppmac.query("semicoarsening", semicoarsening);
-        ppmac.query("max_semicoarsening_level", max_semicoarsening_level);
+//        ppmac.query("semicoarsening", semicoarsening);
+//        ppmac.query("max_semicoarsening_level", max_semicoarsening_level);
 
 	pp.query( "num_pre_smooth"  , num_pre_smooth );
 	pp.query( "num_post_smooth" , num_post_smooth );
@@ -153,8 +153,8 @@ void mlmg_mac_level_solve (Amr* parent, const MultiFab* cphi, const BCRec& phys_
     LPInfo info;
     info.setAgglomeration(agglomeration);
     info.setConsolidation(consolidation);
-    info.setSemicoarsening(semicoarsening);
-    info.setMaxSemicoarseningLevel(max_semicoarsening_level);
+//    info.setSemicoarsening(semicoarsening);
+//    info.setMaxSemicoarseningLevel(max_semicoarsening_level);
 
     Array<MultiFab*,AMREX_SPACEDIM>  umac;
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim)

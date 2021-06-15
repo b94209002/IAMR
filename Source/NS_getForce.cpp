@@ -1,7 +1,8 @@
-
 #include <NavierStokesBase.H>
 #include <AMReX_BLFort.H>
 #include <PROB_NS_F.H>
+#include <NavierStokes.H>
+#include <AMReX_ParmParse.H>
 
 using namespace amrex;
 
@@ -34,7 +35,6 @@ NavierStokesBase::getForce (FArrayBox&       force,
                             int              scalScomp,
                             const MFIter&    mfi)
 {
-#include "prob_init.H"
    const Real* VelDataPtr  = Vel.dataPtr();
    const Real* ScalDataPtr = Scal.dataPtr(scalScomp);
 
@@ -45,6 +45,11 @@ NavierStokesBase::getForce (FArrayBox&       force,
    const int*  v_hi     = Vel.hiVect();
    const int*  s_lo     = Scal.loVect();
    const int*  s_hi     = Scal.hiVect();
+
+
+   ParmParse pp("prob");
+   Real M0 = 0.;Real D0 = 0.;Real dM = 0.;Real dD = 0.;Real N2 = 0.; Real omega = 0.;
+   pp.query("M0", M0);pp.query("dM", dM);pp.query("D0", D0);pp.query("dD", dD);pp.query("N2", N2); pp.query("omega", omega);
 
    if (ParallelDescriptor::IOProcessor() && getForceVerbose) {
       amrex::Print() << "NavierStokesBase::getForce(): Entered..." << std::endl 

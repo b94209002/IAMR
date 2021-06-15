@@ -8,9 +8,9 @@ ns.do_cons_trac = 1
 godunov.use_ppm = 1
 godunov.use_force_in_trans = 1 
 
-max_step 		= 7
+max_step 		= 10
 
-amr.n_cell              = 128 128 32
+amr.n_cell              = 768 768 32
 
 amr.max_level           = 0
 
@@ -24,7 +24,7 @@ ns.v                    = 1
 amr.v                   = 1
 
 amr.checkpoint_files_output = 0
-amr.check_int		= 10 
+amr.check_int		= 10000 
 
 amr.plot_int		= 10
 
@@ -38,8 +38,8 @@ ns.scal_diff_coefs      = 0.0014 0.0014
 
 geometry.coord_sys   =  0
 
-geometry.prob_lo     =  -2. -2. 0.
-geometry.prob_hi     =  2. 2. 1.
+geometry.prob_lo     =  -12. -12. 0.
+geometry.prob_hi     =  12. 12. 1.
 
 geometry.is_periodic =  1 1 0
 
@@ -53,15 +53,19 @@ ns.hi_bc             = 0 0 4
 # 1 = Inflow             4 = SlipWall
 # 2 = Outflow            5 = NoSlipWall
 
+amr.plot_vars = x_velocity y_velocity z_velocity tracer tracer2
+amr.derive_plot_vars    = mag_vort  liquid_water
+
 # Problem parameters
 prob.probtype = 12
 prob.D0 = 0.
-prob.dD = 1.
+prob.dD = 2.
 prob.M0 = 0.
-prob.dM = -3.
-prob.N2 = 4.
+prob.dM = -6.
+prob.N2 = 8.
 prob.omega = 0.
-  
+prob.perturbation_amplitude = 5
+
 amr.blocking_factor     = 8
 amr.ref_ratio           = 2 2 2 2
 
