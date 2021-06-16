@@ -1,7 +1,6 @@
 #include <NavierStokesBase.H>
 #include "NS_derive.H"
 #include <NavierStokes.H>
-#include <AMReX_ParmParse.H>
 #ifdef AMREX_USE_EB
 #include <AMReX_EBFArrayBox.H>
 #endif
@@ -307,20 +306,17 @@ namespace derive_functions
     AMREX_ASSERT(ncomp == 1);
     auto const in_dat = datfab.array();
     auto          der = derfab.array(dcomp);
-
-    ParmParse pp("prob");
-    Real M0 = 0.;Real D0 = 0.;Real dM = 0.;Real dD = 0.;Real N2 = 0.; Real omega = 0.;
-    pp.query("M0", M0);pp.query("dM", dM);pp.query("D0", D0);pp.query("dD", dD);pp.query("N2", N2);pp.query("omega", omega);
+    NavierStokes::RayleighBenard rb = NavierStokes::getRayleighBenard();
 
     amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
       const Real z = z_lo + (k + .5) * dz;
       const Real H = z_hi - z_lo;
-      const Real m = in_dat(i,j,k,1) + M0 + dM*z;
-      const Real d = in_dat(i,j,k,0) + D0 + dD*z;
+      const Real m = in_dat(i,j,k,1) + rb.M0 + rb.dM*z;
+      const Real d = in_dat(i,j,k,0) + rb.D0 + rb.dD*z;
 
-      const Real tmp = std::max(0., m - d + N2*z); 
-      der(i,j,k) = tmp/H/N2;
+      const Real tmp = std::max(0., m - d + rb.N2*z); 
+      der(i,j,k) = tmp/H/rb.N2;
     });	  
   }
 

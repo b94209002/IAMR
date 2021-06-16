@@ -2,7 +2,6 @@
 #include <AMReX_BLFort.H>
 #include <PROB_NS_F.H>
 #include <NavierStokes.H>
-#include <AMReX_ParmParse.H>
 
 using namespace amrex;
 
@@ -45,10 +44,6 @@ NavierStokesBase::getForce (FArrayBox&       force,
    const int*  v_hi     = Vel.hiVect();
    const int*  s_lo     = Scal.loVect();
    const int*  s_hi     = Scal.hiVect();
-
-   Real M0 = 0.;Real D0 = 0.;Real dM = 0.;Real dD = 0.;Real N2 = 0.; Real omega = 0.;
-   ParmParse pp("prob");
-   pp.query("M0", M0);pp.query("dM", dM);pp.query("D0", D0);pp.query("dD", dD);pp.query("N2", N2); pp.query("omega", omega);
 
    if (ParallelDescriptor::IOProcessor() && getForceVerbose) {
       amrex::Print() << "NavierStokesBase::getForce(): Entered..." << std::endl 
@@ -189,17 +184,25 @@ NavierStokesBase::getForce (FArrayBox&       force,
      else {
        const Real* dom_lo = geom.ProbLo();
        const Real* dx = geom.CellSize();
-       amrex::ParallelFor(bx, [frc, vel, scal, D0, dD, M0, dM, N2, omega, dom_lo, dx]
+       NavierStokes::RayleighBenard rb = NavierStokes::getRayleighBenard();
+       Real M0 = rb.M0;Real D0 = rb.D0;Real dM = rb.dM;Real dD = rb.dD;Real N2 = rb.N2; Real omega = rb.omega;
+
+       amrex::ParallelFor(bx, [frc, vel, scal, rb, dom_lo, dx]
        AMREX_GPU_DEVICE(int i, int j, int k) noexcept
        { 
-         frc(i,j,k,0) = omega*vel(i,j,k,1);
 #if ( AMREX_SPACEDIM == 2 )
-//         Real y = problo[1] + (j - domlo.z + 0.5)*dx[1]; 
-//     	 frc(i,j,k,1) = M0 + dM*y + std::max(scal(i,j,k,2), scal(i,j,k,1) + D0-M0 + (dD-dM-N2)*y);
+         frc(i,j,k,0) = 0.0;
+         Real y = problo[1] + (j - domlo.z + 0.5)*dx[1];
+         Real m = scal(i,j,k,2) + rb.M0 + rb.dM*y;
+         Real d = scal(i,j,k,1) + rb.D0 + rb.dD*y;	  
+     	 frc(i,j,k,1) =std::max(0., d - rb.N2*y); 
 #elif ( AMREX_SPACEDIM == 3 )
-         frc(i,j,k,1) = omega*vel(i,j,k,0); 
+	 frc(i,j,k,0) = rb.omega*vel(i,j,k,1);
+         frc(i,j,k,1) = rb.omega*vel(i,j,k,0); 
          Real z = dom_lo[2] + (k+0.5_rt) * dx[2];
-         frc(i,j,k,2) = M0 + dM + std::max(scal(i,j,k,2), scal(i,j,k,1) + D0-M0 + (dD-dM-N2)*z);
+         Real m = scal(i,j,k,2) + rb.M0 + rb.dM*z;
+         Real d = scal(i,j,k,1) + rb.D0 + rb.dD*z;
+         frc(i,j,k,2) = std::max(0., d - rb.N2*z); 
 #endif
 	 // define dD = (DH-D0)/H and dM = (MH-M0)/H 
 	 // with this from, DBC = 0 in the buoyancy equation

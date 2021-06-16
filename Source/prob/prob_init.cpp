@@ -4,7 +4,7 @@
 using namespace amrex;
 
 int NavierStokes::probtype = -1;
-
+NavierStokes::RayleighBenard NavierStokes::rb;
 // For now, define pi here, but maybe later make iamr_constants.H
 namespace {
   constexpr Real Pi    = 3.141592653589793238462643383279502884197;
@@ -64,12 +64,12 @@ void NavierStokes::prob_initData ()
     pp.query("meanFlowMag", IC.meanFlowMag);
 
     // for Rayleigh-Benard
-    pp.query("D0", D0);
-    pp.query("dD", dD);
-    pp.query("M0", M0);
-    pp.query("dM", dM);
-    pp.query("N2", N2);
-    pp.query("omega", omega);
+    pp.query("D0", rb.D0);
+    pp.query("dD", rb.dD);
+    pp.query("M0", rb.M0);
+    pp.query("dM", rb.dM);
+    pp.query("N2", rb.N2);
+    pp.query("omega", rb.omega);
 
     //
     // Fill state and, optionally, pressure
