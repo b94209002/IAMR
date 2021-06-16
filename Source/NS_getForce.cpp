@@ -185,7 +185,6 @@ NavierStokesBase::getForce (FArrayBox&       force,
        const Real* dom_lo = geom.ProbLo();
        const Real* dx = geom.CellSize();
        NavierStokes::RayleighBenard rb = NavierStokes::getRayleighBenard();
-       Real M0 = rb.M0;Real D0 = rb.D0;Real dM = rb.dM;Real dD = rb.dD;Real N2 = rb.N2; Real omega = rb.omega;
 
        amrex::ParallelFor(bx, [frc, vel, scal, rb, dom_lo, dx]
        AMREX_GPU_DEVICE(int i, int j, int k) noexcept
