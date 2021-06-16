@@ -64,13 +64,12 @@ void NavierStokes::prob_initData ()
     pp.query("meanFlowMag", IC.meanFlowMag);
 
     // for Rayleigh-Benard
-    RayleighBenard rb;
-    pp.query("D0", rb.D0);
-    pp.query("dD", rb.dD);
-    pp.query("M0", rb.M0);
-    pp.query("dM", rb.dM);
-    pp.query("N2", rb.N2);
-    pp.query("omega", rb.omega);
+    pp.query("D0", D0);
+    pp.query("dD", dD);
+    pp.query("M0", M0);
+    pp.query("dM", dM);
+    pp.query("N2", N2);
+    pp.query("omega", omega);
 
     //
     // Fill state and, optionally, pressure

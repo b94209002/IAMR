@@ -46,9 +46,8 @@ NavierStokesBase::getForce (FArrayBox&       force,
    const int*  s_lo     = Scal.loVect();
    const int*  s_hi     = Scal.hiVect();
 
-
-   ParmParse pp("prob");
    Real M0 = 0.;Real D0 = 0.;Real dM = 0.;Real dD = 0.;Real N2 = 0.; Real omega = 0.;
+   ParmParse pp("prob");
    pp.query("M0", M0);pp.query("dM", dM);pp.query("D0", D0);pp.query("dD", dD);pp.query("N2", N2); pp.query("omega", omega);
 
    if (ParallelDescriptor::IOProcessor() && getForceVerbose) {

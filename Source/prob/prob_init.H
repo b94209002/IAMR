@@ -145,13 +145,10 @@ void init_RayleighBenard (amrex::Box const& vbx,
 static int probtype;
 
 // For Rayleigh-Benard
-struct RayleighBenard 
-{
   amrex::Real D0 = 0.0;
   amrex::Real dD = 1.0;
   amrex::Real M0 = 0.0;
   amrex::Real dM = -3.0;
   amrex::Real N2 = 4.0;
   amrex::Real omega = 0.0;
-}
 #endif
