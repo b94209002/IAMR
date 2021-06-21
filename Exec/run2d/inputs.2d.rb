@@ -10,7 +10,7 @@ godunov.use_force_in_trans = 1
 
 max_step 		= 10
 
-amr.n_cell              = 128 128 32
+amr.n_cell              = 128 32
 
 amr.max_level           = 0
 
@@ -38,16 +38,16 @@ ns.scal_diff_coefs      = 0.0014 0.0014
 
 geometry.coord_sys   =  0
 
-geometry.prob_lo     =  -2. -2. 0.
-geometry.prob_hi     =  2. 2. 1.
+geometry.prob_lo     =  -2. 0.
+geometry.prob_hi     =  2. 1.
 
-geometry.is_periodic =  1 1 0
+geometry.is_periodic =  1 0
 
 ns.gravity = 0.
 ns.do_trac2 = 1
 
-ns.lo_bc             = 0 0 5
-ns.hi_bc             = 0 0 4
+ns.lo_bc             = 0 5
+ns.hi_bc             = 0 4
 
 # 0 = Interior/Periodic  3 = Symmetry
 # 1 = Inflow             4 = SlipWall
@@ -63,7 +63,6 @@ prob.dD = 8.
 prob.M0 = 0.
 prob.dM = -16.
 prob.N2 = 24.
-prob.qrad = 0.
 prob.omega = 0.
 prob.perturbation_amplitude = 200
 

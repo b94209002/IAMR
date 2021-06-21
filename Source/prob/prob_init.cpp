@@ -69,6 +69,7 @@ void NavierStokes::prob_initData ()
     pp.query("M0", rb.M0);
     pp.query("dM", rb.dM);
     pp.query("N2", rb.N2);
+    pp.query("qrad",rb.qrad);
     pp.query("omega", rb.omega);
 
     //

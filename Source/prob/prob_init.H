@@ -153,6 +153,7 @@ struct RayleighBenard
   amrex::Real M0 = 0.0;
   amrex::Real dM = -3.0;
   amrex::Real N2 = 4.0;
+  amrex::Real qrad = 0.0;
   amrex::Real omega = 0.0;
 };
 static RayleighBenard rb;
