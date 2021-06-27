@@ -10,7 +10,7 @@ godunov.use_force_in_trans = 1
 
 max_step 		= 10
 
-amr.n_cell              = 128 128 32
+amr.n_cell              = 256 256 32
 
 amr.max_level           = 0
 
@@ -38,8 +38,8 @@ ns.scal_diff_coefs      = 0.0014 0.0014
 
 geometry.coord_sys   =  0
 
-geometry.prob_lo     =  -2. -2. 0.
-geometry.prob_hi     =  2. 2. 1.
+geometry.prob_lo     =  -4. -4. 0.
+geometry.prob_hi     =  4. 4. 1.
 
 geometry.is_periodic =  1 1 0
 
@@ -70,6 +70,12 @@ prob.perturbation_amplitude = 200
 amr.blocking_factor     = 8
 amr.ref_ratio           = 2 2 2 2
 
-#mac.v     = 10
+mac.v     = 10
+mac.semicoarsening = 0
+mac.max_semicoarsening_level = 0
+
+diffuse.v = 10
+diffuse.semicoarsening = 0
+diffuse.max_semicoarsening_level = 0
 #proj.v    = 10
 #diffuse.v = 10
