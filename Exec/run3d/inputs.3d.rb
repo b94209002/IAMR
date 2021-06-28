@@ -70,12 +70,25 @@ prob.perturbation_amplitude = 200
 amr.blocking_factor     = 8
 amr.ref_ratio           = 2 2 2 2
 
-mac.v     = 10
-mac.semicoarsening = 0
-mac.max_semicoarsening_level = 0
+mac.v     = 0
+mac.semicoarsening = 1
+mac.max_semicoarsening_level = 2
 
-diffuse.v = 10
-diffuse.semicoarsening = 0
-diffuse.max_semicoarsening_level = 0
-#proj.v    = 10
-#diffuse.v = 10
+diffuse.v = 0
+diffuse.semicoarsening = 1
+diffuse.max_semicoarsening_level = 2
+
+#proj.v = 1
+proj.max_coarsening_level = 5
+proj.semicoarsening = 1 
+proj.max_semicoarsening_level = 1
+proj.proj_tol = 1.e-12
+#nodal_proj.verbose = 5
+#nodal_proj.bottom_verbose = 2
+nodal_proj.bottom_solver = hypre
+#nodal_proj.mg_max_coarsening_level=0
+#nodal_proj.bottom_rtol       = 1.e-12
+#nodal_proj.bottom_maxiter = 100
+hypre.hypre_solver = BiCGSTAB
+hypre.hypre_preconditioner = BoomerAMG
+

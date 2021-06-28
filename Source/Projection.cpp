@@ -57,8 +57,9 @@ namespace
     int max_fmg_iter = 0;
     bool use_gauss_seidel = true;
     bool use_harmonic_average = false;
-//    bool semicoarsening = false;
-//    int max_semicoarsening_level = 0;
+    int max_coarsening_level = 30;
+    bool semicoarsening = 0;
+    int max_semicoarsening_level = 0;
     bool bottom_verbose = false;    
 
     constexpr Real BogusValue = 1.e200;
@@ -89,8 +90,9 @@ Projection::Initialize ()
     pp.query("max_fmg_iter",        max_fmg_iter);
     pp.query("use_gauss_seidel",    use_gauss_seidel);
     pp.query("use_harmonic_average", use_harmonic_average);
-//    pp.query("semicoarsening",      semicoarsening);
-//    pp.query("max_semicoarsening_level", max_semicoarsening_level);
+    pp.query("max_coarsening_level", max_coarsening_level); 
+    pp.query("semicoarsening",      semicoarsening);
+    pp.query("max_semicoarsening_level", max_semicoarsening_level);
 
     pp.query("proj_2",              proj_2);
     if (!proj_2)
@@ -2502,14 +2504,14 @@ void Projection::doMLMGNodalProjection (int c_lev, int nlevel,
     LPInfo info;
     //Fixme
     // does this max_coarsening level need to match the one in main.cpp????
-    int max_coarsening_level(30);
+    // int max_coarsening_level(30);
     info.setMaxCoarseningLevel(max_coarsening_level);
     info.setAgglomeration(agglomeration);
     info.setConsolidation(consolidation);
     // metric term stuff doesn't get used at all for nodal
     //info.setMetricTerm(false);
-//    info.setSemicoarsening(semicoarsening);
-//    info.setMaxSemicoarseningLevel(max_semicoarsening_level);
+    info.setSemicoarsening(semicoarsening);
+    info.setMaxSemicoarseningLevel(max_semicoarsening_level);
 
     //
     // Setup variables to use in projection
