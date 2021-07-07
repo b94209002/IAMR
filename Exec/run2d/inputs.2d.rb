@@ -3,6 +3,7 @@
 # INPUTS.3D.RT for regression testing
 #*******************************************************************************
 
+amrex.fpe_trap_invalid = 1
 ns.do_mom_diff = 1
 ns.do_cons_trac = 1
 ns.do_cons_trac2 = 1
