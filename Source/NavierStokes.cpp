@@ -983,6 +983,8 @@ NavierStokes::scalar_diffusion_update (Real dt,
 
       }//end if(is_diffusive)
     }
+    // VisMF::Write(const FabArray<FArrayBox>& mf, const std::string& name);
+    // VisMF::Write(*Sn[1],"test");
 }
 
 void

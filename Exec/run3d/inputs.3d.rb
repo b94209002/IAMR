@@ -5,6 +5,7 @@
 
 ns.do_mom_diff = 1
 ns.do_cons_trac = 1
+ns.do_cons_trac2 = 1
 godunov.use_ppm = 1
 godunov.use_force_in_trans = 1 
 
@@ -12,11 +13,11 @@ max_step 		= 10
 
 amr.n_cell              = 256 256 32
 
-amr.max_level           = 0
+amr.max_level           = 2
 
 # Refinement criterion, use vorticity
-amr.refinement_indicators = vorticity
-amr.vorticity.vorticity_greater =  1000.0
+amr.refinement_indicators = liquid_water
+amr.liquid_water.liquid_water_greater =  0.0001
 
 amr.regrid_int		= 2 
 
@@ -26,7 +27,7 @@ amr.v                   = 1
 #amr.checkpoint_files_output = 0
 amr.check_int		= 80 
 
-amr.plot_int		= 10
+amr.plot_int		= 1
 
 ns.cfl                  = 0.7  # CFL number used to set dt
 
