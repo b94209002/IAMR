@@ -40,7 +40,6 @@ struct InitialConditions
   amrex::Real yvort = 0.5;
   amrex::Real rvort = 0.07;
   amrex::Real forcevort = 6.0;
-
 };
 
 //
@@ -146,7 +145,7 @@ static int probtype;
 
 
 // For Rayleigh-Benard
-struct RayleighBenard 
+struct RayleighBenard
 {
   amrex::Real D0 = 0.0;
   amrex::Real dD = 1.0;

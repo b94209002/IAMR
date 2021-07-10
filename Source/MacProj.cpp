@@ -674,6 +674,8 @@ MacProj::mac_sync_compute (int                   level,
             for (int d=0; d < AMREX_SPACEDIM; ++d )
                 MultiFab::Multiply( momenta, Smf, Density, d, 1, Smf.nGrow());
         }
+
+
         //
         // Compute forcing terms for all component
         //
@@ -742,11 +744,11 @@ MacProj::mac_sync_compute (int                   level,
                         amrex::ParallelFor(gbx, [tf, visc, S, divu]
                         AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                         {
-			    tf(i,j,k) = - S(i,j,k) * divu(i,j,k);
-                            // tf(i,j,k) += visc(i,j,k) - S(i,j,k) * divu(i,j,k);
+                            tf(i,j,k) += visc(i,j,k) - S(i,j,k) * divu(i,j,k);
                         });
                     }
                 }
+
 
                 //
                 // Perform sync
@@ -800,6 +802,7 @@ MacProj::mac_sync_compute (int                   level,
             }
         }
     }
+
 
     if (level > 0 && update_fluxreg)
     {
@@ -862,6 +865,7 @@ MacProj::mac_sync_compute (int                    level,
         const BoxArray& ba = LevelData[level]->getEdgeBoxArray(i);
         fluxes[i].define(ba, dmap, 1, sync_edges[0]->nGrow(), MFInfo(),ns_level.Factory());
     }
+
     //
     // Compute the mac sync correction.
     //

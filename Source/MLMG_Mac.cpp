@@ -88,6 +88,7 @@ void mlmg_mac_level_solve (Amr* parent, const MultiFab* cphi, const BCRec& phys_
         if ( ppmac.contains("hypre_verbose") )
 	  amrex::Abort("hypre_verbose is no more. To make the bottom solver verbose set mac_proj.bottom_verbose = 1.");
 #endif
+
 	// Read the mac_proj options so we can set them here for use in the mac_sync
 	// which does not go to the MacProjector.
 	ParmParse pp("mac_proj");
@@ -110,7 +111,7 @@ void mlmg_mac_level_solve (Amr* parent, const MultiFab* cphi, const BCRec& phys_
     }
 
     const Geometry& geom = parent->Geom(level);
-   const BoxArray& ba = Rhs.boxArray();
+    const BoxArray& ba = Rhs.boxArray();
     const DistributionMapping& dm = Rhs.DistributionMap();
 
     //

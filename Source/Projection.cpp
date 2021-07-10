@@ -60,7 +60,7 @@ namespace
     int max_coarsening_level = 30;
     bool semicoarsening = 0;
     int max_semicoarsening_level = 0;
-    bool bottom_verbose = false;    
+    bool bottom_verbose = false;
 
     constexpr Real BogusValue = 1.e200;
     constexpr Real SmallValue = 1.e-200;
@@ -90,7 +90,7 @@ Projection::Initialize ()
     pp.query("max_fmg_iter",        max_fmg_iter);
     pp.query("use_gauss_seidel",    use_gauss_seidel);
     pp.query("use_harmonic_average", use_harmonic_average);
-    pp.query("max_coarsening_level", max_coarsening_level); 
+    pp.query("max_coarsening_level", max_coarsening_level);
     pp.query("semicoarsening",      semicoarsening);
     pp.query("max_semicoarsening_level", max_semicoarsening_level);
 
@@ -2504,7 +2504,7 @@ void Projection::doMLMGNodalProjection (int c_lev, int nlevel,
     LPInfo info;
     //Fixme
     // does this max_coarsening level need to match the one in main.cpp????
-    // int max_coarsening_level(30);
+    int max_coarsening_level(30);
     info.setMaxCoarseningLevel(max_coarsening_level);
     info.setAgglomeration(agglomeration);
     info.setConsolidation(consolidation);

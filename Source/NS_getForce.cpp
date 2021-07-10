@@ -33,7 +33,6 @@ NavierStokesBase::getForce (FArrayBox&       force,
                             int              scalScomp,
                             const MFIter&    mfi)
 {
-   amrex::Print() << "IN GETFORCE " << scomp << " " << ncomp << std::endl;
    const Real* VelDataPtr  = Vel.dataPtr();
    const Real* ScalDataPtr = Scal.dataPtr(scalScomp);
 
@@ -241,7 +240,6 @@ NavierStokesBase::getForce (FArrayBox&       force,
      // We are filling these all at once
      if ( scomp == 0 && scomp+ncomp >= AMREX_SPACEDIM+3 ) 
      {
-         amrex::Print() <<" SETTING COMPS 234 " << std::endl;
          auto const& frc = force.array();
          auto const& vel = Vel.array();
          amrex::ParallelFor(bx, [frc, vel, rb, dx, H, dom_lo, Pi]
@@ -308,7 +306,6 @@ NavierStokesBase::getForce (FArrayBox&       force,
      // We are filling these all at once
      if ( scomp == 0 && scomp+ncomp >= AMREX_SPACEDIM+3 )
      {
-         amrex::Print() <<" SETTING COMPS 234 " << std::endl;
          auto const& frc = force.array();
          auto const& vel = Vel.array();
          amrex::ParallelFor(bx, [frc, vel, rb, dx, H, dom_lo, Pi]

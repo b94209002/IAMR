@@ -4,6 +4,7 @@
 using namespace amrex;
 
 int NavierStokes::probtype = -1;
+
 NavierStokes::RayleighBenard NavierStokes::rb;
 // For now, define pi here, but maybe later make iamr_constants.H
 namespace {
@@ -21,7 +22,7 @@ void NavierStokes::prob_initData ()
     // Create struct to hold initial conditions parameters
     //
     InitialConditions IC;
-    
+
     //
     // Read problem parameters from inputs file
     //
@@ -153,7 +154,7 @@ void NavierStokes::prob_initData ()
           init_RayleighBenard(vbx, P_new.array(mfi), S_new.array(mfi, Xvel),
                               S_new.array(mfi, Density), nscal,
                               domain, dx, problo, probhi, IC);
-        }	
+	}
 	else
         {
             amrex::Abort("NavierStokes::prob_init: unknown probtype");
@@ -693,4 +694,3 @@ void NavierStokes::init_RayleighBenard (Box const& vbx,
 
 #endif
 }
-
