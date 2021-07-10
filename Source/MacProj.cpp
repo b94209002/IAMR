@@ -743,7 +743,6 @@ MacProj::mac_sync_compute (int                   level,
                         });
                     }
                 }
-                VisMF::Write(Smf,"Smf");
 
                 //
                 // Perform sync
