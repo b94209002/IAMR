@@ -195,8 +195,8 @@ NavierStokesBase::getForce (FArrayBox&       force,
          Real d = scal(i,j,k,1) + rb.D0 + rb.dD*y;	  
      	 frc(i,j,k,1) = std::max(m, d - rb.N2*y); 
 #elif ( AMREX_SPACEDIM == 3 )
-	 frc(i,j,k,0) = rb.omega*vel(i,j,k,1);
-         frc(i,j,k,1) = -rb.omega*vel(i,j,k,0); 
+	 frc(i,j,k,0) = scal(i,j,k,0) * rb.omega * vel(i,j,k,1);
+         frc(i,j,k,1) = -scal(i,j,k,0) * rb.omega * vel(i,j,k,0); 
          Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
          Real m = scal(i,j,k,2) + rb.M0 + rb.dM*z;
          Real d = scal(i,j,k,1) + rb.D0 + rb.dD*z;

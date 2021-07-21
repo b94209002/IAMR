@@ -9,7 +9,7 @@ ns.do_cons_trac2 = 1
 godunov.use_ppm = 1
 godunov.use_force_in_trans = 1 
 
-max_step 		= 10
+max_step 		= 3
 
 amr.n_cell              = 384 384 32
 
@@ -54,7 +54,7 @@ ns.hi_bc             = 0 0 4
 # 1 = Inflow             4 = SlipWall
 # 2 = Outflow            5 = NoSlipWall
 
-amr.plot_vars = x_velocity y_velocity z_velocity tracer tracer2
+amr.plot_vars = x_velocity y_velocity z_velocity density tracer tracer2
 amr.derive_plot_vars    = mag_vort  liquid_water
 
 # Problem parameters
