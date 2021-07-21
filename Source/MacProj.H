@@ -175,6 +175,9 @@ public:
     static int agglomeration;
     static int consolidation;
     static int max_fmg_iter;
+    static int semicoarsening;
+    static int max_semicoarsening_level;
+    static int bottom_verbose;
 
 };
 

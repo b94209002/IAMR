@@ -36,6 +36,9 @@ int  MacProj::max_order = 4;
 int  MacProj::agglomeration = 1;
 int  MacProj::consolidation = 1;
 int  MacProj::max_fmg_iter = -1;
+int  MacProj::semicoarsening = 0; 
+int  MacProj::max_semicoarsening_level = 0;
+int  MacProj::bottom_verbose = false;
 
 namespace
 {
@@ -88,6 +91,10 @@ MacProj::Initialize ()
     pp.query("agglomeration", agglomeration);
     pp.query("consolidation", consolidation);
     pp.query("max_fmg_iter", max_fmg_iter);
+    pp.query("semicoarsening", semicoarsening);
+    pp.query("max_semicoarsening_level", max_semicoarsening_level);
+    pp.query("bottom_verbose", bottom_verbose);
+
 #ifdef AMREX_USE_HYPRE
     if ( pp.contains("use_hypre") )
       amrex::Abort("use_hypre is no more. To use Hypre set mac_proj.bottom_solver = hypre.");
@@ -1325,6 +1332,8 @@ MacProj::mlmg_mac_solve (Amr* parent, const MultiFab* cphi, const BCRec& phys_bc
     LPInfo info;
     info.setAgglomeration(agglomeration);
     info.setConsolidation(consolidation);
+    info.setSemicoarsening(semicoarsening);
+    info.setMaxSemicoarseningLevel(max_semicoarsening_level);
 
     //
     // To use phi on CellCentroids, must also call
