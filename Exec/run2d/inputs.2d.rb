@@ -10,7 +10,7 @@ ns.do_cons_trac2 = 1
 godunov.use_ppm = 1
 godunov.use_force_in_trans = 1 
 
-max_step 		= 100
+max_step 		= 3000
 
 amr.n_cell              = 128 32
 
@@ -26,7 +26,7 @@ ns.v                    = 1
 amr.v                   = 1
 
 #amr.checkpoint_files_output = 0
-amr.check_int		= 80 
+amr.check_int		= 1000 
 
 amr.plot_int		= 10
 
@@ -66,9 +66,9 @@ prob.M0 = 0.
 prob.dM = -16.
 prob.N2 = 24.
 prob.omega = 0.
-prob.perturbation_amplitude = 200
+prob.perturbation_amplitude = 50
 
-amr.blocking_factor     = 8
+amr.blocking_factor     = 32
 amr.ref_ratio           = 2 2 2 2
 
 #mac.v     = 10

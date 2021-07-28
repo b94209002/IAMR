@@ -9,7 +9,7 @@ ns.do_cons_trac2 = 1
 godunov.use_ppm = 1
 godunov.use_force_in_trans = 1 
 
-max_step 		= 3
+max_step 		= 100
 
 amr.n_cell              = 384 384 32
 
@@ -27,7 +27,7 @@ amr.v                   = 1
 #amr.checkpoint_files_output = 0
 amr.check_int		= 80 
 
-amr.plot_int		= 1
+amr.plot_int		= 2
 
 ns.cfl                  = 0.7  # CFL number used to set dt
 
