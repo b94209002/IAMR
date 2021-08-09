@@ -143,7 +143,7 @@ void init_RayleighBenard (amrex::Box const& vbx,
 //
 static int probtype;
 
-
+static void prob_initData_restart();
 // For Rayleigh-Benard
 struct RayleighBenard
 {

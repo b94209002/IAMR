@@ -162,6 +162,18 @@ void NavierStokes::prob_initData ()
     }
 }
 
+void NavierStokes::prob_initData_restart ()
+{
+    ParmParse pp("prob");
+    pp.query("D0", rb.D0);
+    pp.query("dD", rb.dD);
+    pp.query("M0", rb.M0);
+    pp.query("dM", rb.dM);
+    pp.query("N2", rb.N2);
+    pp.query("qrad",rb.qrad);
+    pp.query("omega", rb.omega);
+}
+
 void NavierStokes::init_bubble (Box const& vbx,
 				Array4<Real> const& /*press*/,
 				Array4<Real> const& vel,

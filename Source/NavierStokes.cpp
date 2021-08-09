@@ -37,6 +37,7 @@ void
 NavierStokes::Initialize ()
 {
     if (initialized) return;
+    NavierStokes::restart_initData();
 
     NavierStokesBase::Initialize();
 
@@ -336,8 +337,7 @@ NavierStokes::initData ()
     //
     // Initialize the state and the pressure.
     //
-    prob_initData();
-
+  //  prob_initData();
     //
     // Initialize GradP
     //
@@ -471,6 +471,11 @@ NavierStokes::initData ()
 #ifdef AMREX_PARTICLES
     initParticleData ();
 #endif
+}
+void
+NavierStokes::restart_initData ()
+{
+    prob_initData_restart();
 }
 
 //

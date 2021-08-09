@@ -53,6 +53,7 @@ public:
     // Problem initialization functions
     //
 #include "prob_init.H"
+    static void restart_initData ();
     //
     // Write plot file stuff to specified directory.
     //
