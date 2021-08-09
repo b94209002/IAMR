@@ -337,7 +337,7 @@ NavierStokes::initData ()
     //
     // Initialize the state and the pressure.
     //
-  //  prob_initData();
+    prob_initData();
     //
     // Initialize GradP
     //
