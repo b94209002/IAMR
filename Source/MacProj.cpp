@@ -36,7 +36,7 @@ int  MacProj::max_order = 4;
 int  MacProj::agglomeration = 1;
 int  MacProj::consolidation = 1;
 int  MacProj::max_fmg_iter = -1;
-int  MacProj::semicoarsening = 0; 
+int  MacProj::semicoarsening = 0;
 int  MacProj::max_semicoarsening_level = 0;
 int  MacProj::bottom_verbose = false;
 

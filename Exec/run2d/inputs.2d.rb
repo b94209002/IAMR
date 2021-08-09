@@ -8,7 +8,7 @@ ns.do_mom_diff = 1
 ns.do_cons_trac = 1
 ns.do_cons_trac2 = 1
 godunov.use_ppm = 1
-godunov.use_force_in_trans = 1 
+godunov.use_force_in_trans = 1
 
 max_step 		= 3000
 
@@ -20,7 +20,7 @@ amr.max_level           = 2
 amr.refinement_indicators = liquid_water
 amr.liquid_water.liquid_water_greater = 0.01
 
-amr.regrid_int		= 2 
+amr.regrid_int		= 2
 
 ns.v                    = 1
 amr.v                   = 1
@@ -33,7 +33,7 @@ amr.plot_int		= 10
 ns.cfl                  = 0.7  # CFL number used to set dt
 
 ns.init_shrink          = 1.0  # factor which multiplies the very first time step
-ns.init_iter            = 0 
+ns.init_iter            = 0
 
 ns.vel_visc_coef        = 0.001
 ns.scal_diff_coefs      = 0.0014 0.0014

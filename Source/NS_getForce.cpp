@@ -1,5 +1,7 @@
+
 #include <NavierStokesBase.H>
 #include <AMReX_BLFort.H>
+
 #include <NavierStokes.H>
 
 using namespace amrex;
@@ -33,6 +35,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
                             int              scalScomp,
                             const MFIter&    mfi)
 {
+
    const Real* VelDataPtr  = Vel.dataPtr();
    const Real* ScalDataPtr = Scal.dataPtr(scalScomp);
 
@@ -187,25 +190,24 @@ NavierStokesBase::getForce (FArrayBox&       force,
 
        amrex::ParallelFor(bx, [frc, vel, scal, rb, dom_lo, dx]
        AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-       { 
+       {
 #if ( AMREX_SPACEDIM == 2 )
          frc(i,j,k,0) = 0.0;
          Real y = dom_lo[1] + (j + 0.5_rt) * dx[1];
          Real m = scal(i,j,k,2) + rb.M0 + rb.dM*y;
-         Real d = scal(i,j,k,1) + rb.D0 + rb.dD*y;	  
-     	 frc(i,j,k,1) = std::max(m, d - rb.N2*y); 
+         Real d = scal(i,j,k,1) + rb.D0 + rb.dD*y;
+         frc(i,j,k,1) = std::max(m, d - rb.N2*y);
 #elif ( AMREX_SPACEDIM == 3 )
 	 frc(i,j,k,0) = scal(i,j,k,0) * rb.omega * vel(i,j,k,1);
-         frc(i,j,k,1) = -scal(i,j,k,0) * rb.omega * vel(i,j,k,0); 
+         frc(i,j,k,1) = -scal(i,j,k,0) * rb.omega * vel(i,j,k,0);
          Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
          Real m = scal(i,j,k,2) + rb.M0 + rb.dM*z;
          Real d = scal(i,j,k,1) + rb.D0 + rb.dD*z;
-         frc(i,j,k,2) = std::max(m, d - rb.N2*z); 
+         frc(i,j,k,2) = std::max(m, d - rb.N2*z);
 #endif
-	 // define dD = (DH-D0)/H and dM = (MH-M0)/H 
+	 // define dD = (DH-D0)/H and dM = (MH-M0)/H
 	 // with this from, DBC = 0 in the buoyancy equation
        });
-       // temp for Rayleigh-Benard 	     
        // force.setVal<RunOn::Gpu>(0.0, bx, Xvel, AMREX_SPACEDIM);
        // amrex::ParallelFor(bx, AMREX_SPACEDIM, [frc]
        // AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept
@@ -238,7 +240,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
      const Real H = dom_hi[1] - dom_lo[1];
 
      // We are filling these all at once
-     if ( scomp == 0 && scomp+ncomp >= AMREX_SPACEDIM+3 ) 
+     if ( scomp == 0 && scomp+ncomp >= AMREX_SPACEDIM+3 )
      {
          auto const& frc = force.array();
          auto const& vel = Vel.array();
@@ -266,7 +268,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
      });
      }
 
-     // We are filling only density 
+     // We are filling only density
      if ( scomp == AMREX_SPACEDIM && ncomp == 1 ) {
      auto const& frc = force.array();
      auto const& vel = Vel.array();
@@ -277,7 +279,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
      });
      }
 
-     // We are filling only trac 
+     // We are filling only trac
      if ( scomp == AMREX_SPACEDIM+1 && ncomp == 1 ) {
      auto const& frc = force.array();
      auto const& vel = Vel.array();
@@ -292,7 +294,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
      // We are filling only trac2
      if ( scomp == AMREX_SPACEDIM+2 && ncomp == 1 ) {
      auto const& frc = force.array();
-     auto const& vel = Vel.array(); 
+     auto const& vel = Vel.array();
      amrex::ParallelFor(bx, [frc, vel, rb, dx, H, dom_lo, Pi]
      AMREX_GPU_DEVICE(int i, int j, int k) noexcept
      {
@@ -331,7 +333,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
      });
      }
 
-     // We are filling only density 
+     // We are filling only density
      if ( scomp == AMREX_SPACEDIM && ncomp == 1 ) {
      auto const& frc = force.array();
      auto const& vel = Vel.array();
@@ -362,7 +364,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
          frc(i,j,k,0) = -vel(i,j,k,2)*rb.dM - 0.5 * rb.qrad * sin(Pi*z/H);
      });
      }
-#endif     
+#endif
 
    }
      

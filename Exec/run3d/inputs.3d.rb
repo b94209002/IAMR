@@ -7,7 +7,7 @@ ns.do_mom_diff = 1
 ns.do_cons_trac = 1
 ns.do_cons_trac2 = 1
 godunov.use_ppm = 1
-godunov.use_force_in_trans = 1 
+godunov.use_force_in_trans = 1
 
 max_step 		= 4000
 
@@ -19,13 +19,13 @@ amr.max_level           = 0
 amr.refinement_indicators = liquid_water
 amr.liquid_water.liquid_water_greater =  0.0001
 
-amr.regrid_int		= 2 
+amr.regrid_int		= 2
 
 ns.v                    = 1
 amr.v                   = 1
 
 #amr.checkpoint_files_output = 0
-amr.restart             = chk02200
+#amr.restart             = chk02200
 amr.check_int		= 200 
 
 amr.plot_int		= 100
@@ -33,7 +33,7 @@ amr.plot_int		= 100
 ns.cfl                  = 0.7  # CFL number used to set dt
 
 ns.init_shrink          = 1.0  # factor which multiplies the very first time step
-ns.init_iter            = 0 
+ns.init_iter            = 0
 
 ns.vel_visc_coef        = 0.001
 ns.scal_diff_coefs      = 0.0014 0.0014
@@ -80,9 +80,9 @@ diffuse.v = 0
 diffuse.semicoarsening = 1
 diffuse.max_semicoarsening_level = 2
 
-#proj.v = 1
+proj.v = 0
 proj.max_coarsening_level = 5
-proj.semicoarsening = 1 
+proj.semicoarsening = 1
 proj.max_semicoarsening_level = 1
 proj.proj_tol = 1.e-12
 #nodal_proj.verbose = 5

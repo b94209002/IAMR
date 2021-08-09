@@ -37,7 +37,6 @@ void
 NavierStokes::Initialize ()
 {
     if (initialized) return;
-    NavierStokes::restart_initData();
 
     NavierStokesBase::Initialize();
 
@@ -306,6 +305,8 @@ NavierStokes::Initialize_specific ()
         Temp = ++scalId;
         pp.get("temp_cond_coef",visc_coef[Temp]);
     }
+    // read prob data
+    prob_initData_restart();
 }
 
 void
@@ -338,6 +339,7 @@ NavierStokes::initData ()
     // Initialize the state and the pressure.
     //
     prob_initData();
+
     //
     // Initialize GradP
     //
@@ -471,11 +473,6 @@ NavierStokes::initData ()
 #ifdef AMREX_PARTICLES
     initParticleData ();
 #endif
-}
-void
-NavierStokes::restart_initData ()
-{
-    prob_initData_restart();
 }
 
 //
@@ -974,8 +971,6 @@ NavierStokes::scalar_diffusion_update (Real dt,
 
       }//end if(is_diffusive)
     }
-    // VisMF::Write(const FabArray<FArrayBox>& mf, const std::string& name);
-    // VisMF::Write(*Sn[1],"test");
 }
 
 void
