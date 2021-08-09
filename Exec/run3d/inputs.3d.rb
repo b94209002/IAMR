@@ -26,7 +26,7 @@ amr.v                   = 1
 
 #amr.checkpoint_files_output = 0
 #amr.restart             = chk02200
-amr.check_int		= 200 
+amr.check_int		= 200
 
 amr.plot_int		= 100
 
