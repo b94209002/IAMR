@@ -141,11 +141,7 @@ Real NavierStokesBase::volWgtSum_sub_dz       = -1;
 
 int  NavierStokesBase::do_mom_diff            = 0;
 
-#ifdef AMREX_USE_EB
-bool  NavierStokesBase::use_godunov = false; //Default to MOL
-#else
 bool  NavierStokesBase::use_godunov = true;  //Default to Godunov
-#endif
 
 bool NavierStokesBase::godunov_use_ppm = false;
 bool NavierStokesBase::godunov_use_forces_in_trans = false;
@@ -156,7 +152,7 @@ bool         NavierStokesBase::eb_initialized      = false;
 bool         NavierStokesBase::no_eb_in_domain     = true;
 bool         NavierStokesBase::body_state_set      = false;
 std::vector<Real> NavierStokesBase::body_state;
-std::string  NavierStokesBase::redistribution_type = "FluxRedist";
+std::string  NavierStokesBase::redistribution_type = "StateRedist";
 #endif
 
 //
@@ -553,10 +549,10 @@ NavierStokesBase::Initialize ()
     pp.query("redistribution_type", redistribution_type);
     if (redistribution_type != "NoRedist" &&
         redistribution_type != "FluxRedist" &&
-        // m_redistribution_type != "MergeRedist" &&  // Not supported for now
-        redistribution_type != "StateRedist")
+        redistribution_type != "StateRedist" &&
+        redistribution_type != "NewStateRedist")
         // amrex::Abort("redistribution type must be NoRedist, FluxRedist, MergeRedist, or StateRedist");
-        amrex::Abort("redistribution type must be NoRedist, FluxRedist, or StateRedist");
+        amrex::Abort("redistribution type must be NoRedist, FluxRedist, StateRedist or NewStateRedist");
 #endif
 
 
@@ -620,7 +616,8 @@ NavierStokesBase::advance_setup (Real /*time*/,
     if (level < finest_level)
     {
 #ifdef AMREX_USE_EB
-        int ng_sync = (redistribution_type == "StateRedist" ) ? nghost_state() : 1;
+        int ng_sync = (redistribution_type == "StateRedist" ||
+                       redistribution_type == "NewStateRedist" ) ? nghost_state() : 1;
 #else
 	int ng_sync = 1;
 #endif
@@ -2565,7 +2562,8 @@ NavierStokesBase::restart (Amr&          papa,
     if (level < parent->finestLevel())
     {
 #ifdef AMREX_USE_EB
-        int ng_sync = (redistribution_type == "StateRedist" ) ? nghost_state() : 1;
+        int ng_sync = (redistribution_type == "StateRedist" ||
+                       redistribution_type == "NewStateRedist") ? nghost_state() : 1;
 #else
 	int ng_sync = 1;
 #endif
@@ -2713,7 +2711,7 @@ NavierStokesBase::scalar_advection_update (Real dt,
 	       amrex::ParallelFor(bx, NUM_SCALARS, [ Snp1, Sn, Sarr]
 	       AMREX_GPU_DEVICE (int i, int j, int k, int n ) noexcept
                {
-		   Sarr(i,j,k,n) = 0.5 * ( Snp1(i,j,k,n) + Sn(i,j,k,n) );
+	       	   Sarr(i,j,k,n) = 0.5 * ( Snp1(i,j,k,n) + Sn(i,j,k,n) );
 	       });
 
                const Real halftime = 0.5*(state[State_Type].curTime()+state[State_Type].prevTime());
@@ -2729,11 +2727,25 @@ NavierStokesBase::scalar_advection_update (Real dt,
 	       const auto& Sold = S_old[Rho_mfi].const_array(sigma);
 	       const auto& advc = Aofs[Rho_mfi].const_array(sigma);
 	       const auto& tf   = tforces.const_array();
-	       amrex::ParallelFor(bx, [ Snew, Sold, advc, tf, dt]
-	       AMREX_GPU_DEVICE (int i, int j, int k ) noexcept
-               {
-		 Snew(i,j,k) = Sold(i,j,k) + dt * ( tf(i,j,k) - advc(i,j,k) );
-               });
+               const auto& rho  = rho_halftime[Rho_mfi].const_array();
+
+	       // Recall tforces is always density-weighted
+	       if (advectionType[sigma] == Conservative)
+	       {
+		 amrex::ParallelFor(bx, [ Snew, Sold, advc, tf, dt]
+	         AMREX_GPU_DEVICE (int i, int j, int k ) noexcept
+		 {
+		     Snew(i,j,k) = Sold(i,j,k) + dt * ( - advc(i,j,k) + tf(i,j,k)  );
+		 });
+	       }
+	       else
+	       {
+		 amrex::ParallelFor(bx, [ Snew, Sold, advc, tf, dt, rho]
+	         AMREX_GPU_DEVICE (int i, int j, int k ) noexcept
+		 {
+		     Snew(i,j,k) = Sold(i,j,k) + dt * ( - advc(i,j,k) + tf(i,j,k)/rho(i,j,k) );
+		 });
+	       }
 
                // Either need this synchronize here, or elixirs. Not sure if it matters which
 	       amrex::Gpu::synchronize();
@@ -4645,7 +4657,7 @@ NavierStokesBase::InitialRedistribution ()
 {
     // Next we must redistribute the initial solution if we are going to use
     // MergeRedist or StateRedist redistribution schemes
-    if ( redistribution_type != "StateRedist" && redistribution_type != "MergeRedist")
+    if ( redistribution_type != "StateRedist" && redistribution_type != "NewStateRedist")
         return;
 
     if (verbose)
@@ -4657,7 +4669,7 @@ NavierStokesBase::InitialRedistribution ()
     // We also need any physical boundary conditions imposed if we are
     //    calling state redistribution (because that calls the slope routine)
     FillPatchIterator S_fpi(*this, S_new, nghost_state(), state[State_Type].curTime(),
-			    State_Type, 0, NUM_STATE);
+                            State_Type, 0, NUM_STATE);
     MultiFab& Smf=S_fpi.get_mf();
     EB_set_covered(Smf, 0.0);
 
@@ -4676,8 +4688,8 @@ NavierStokesBase::InitialRedistribution ()
         EBCellFlagFab const& flagfab = fact.getMultiEBCellFlagFab()[mfi];
         Array4<EBCellFlag const> const& flag = flagfab.const_array();
 
-	// FIXME? not sure if 4 is really needed or if 3 could do
-	// But this is a safe choice
+        // FIXME? not sure if 4 is really needed or if 3 could do
+        // But this is a safe choice
         if ( (flagfab.getType(bx) != FabType::covered) &&
              (flagfab.getType(amrex::grow(bx,4)) != FabType::regular) )
         {
@@ -4695,19 +4707,19 @@ NavierStokesBase::InitialRedistribution ()
 
             vfrac = fact.getVolFrac().const_array(mfi);
 
-	    //FIXME: this is a hack due to separate bcrecs Maybe want to put in single array.
-            Redistribution::ApplyToInitialData( bx,AMREX_SPACEDIM,
+            //FIXME: this is a hack due to separate bcrecs Maybe want to put in single array.
+            Redistribution::ApplyToInitialData( bx, AMREX_SPACEDIM,
                                                 Smf.array(mfi), tmp.array(mfi),
                                                 flag, AMREX_D_DECL(apx, apy, apz), vfrac,
                                                 AMREX_D_DECL(fcx, fcy, fcz),
                                                 ccc, m_bcrec_velocity_d.dataPtr(),
-						geom, redistribution_type);
+                                                geom, redistribution_type);
             Redistribution::ApplyToInitialData( bx,NUM_SCALARS,
                                                 Smf.array(mfi,Density), tmp.array(mfi,Density),
                                                 flag, AMREX_D_DECL(apx, apy, apz), vfrac,
                                                 AMREX_D_DECL(fcx, fcy, fcz),
                                                 ccc,m_bcrec_scalars_d.dataPtr(),
-						geom, redistribution_type);
+                                                geom, redistribution_type);
         }
     }
 
