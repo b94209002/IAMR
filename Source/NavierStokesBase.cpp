@@ -3061,14 +3061,20 @@ NavierStokesBase::SyncInterp (MultiFab&      CrseSync,
             auto const& finedata    = fdata.array();
             auto const& coarsedata  = cdata.array();
             int scale_coarse = (interpolater == &protected_interp) ? 1 : 0;
-            amrex::ParallelFor(bx, num_comp, [finedata,coarsedata,dt_clev, scale_coarse]
+            amrex::ParallelFor(bx, num_comp, [finedata,dt_clev]
             AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept
             {
                finedata(i,j,k,n) *= dt_clev;
-               if ( scale_coarse ) {
-                  coarsedata(i,j,k,n) *= dt_clev;
-               }
             });
+
+            if ( scale_coarse ) {
+                amrex::ParallelFor(cbx, num_comp, [coarsedata,dt_clev]
+                AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept
+                {
+                    coarsedata(i,j,k,n) *= dt_clev;
+                });
+            }
+
 
             if (interpolater == &protected_interp)
             {
@@ -3079,14 +3085,21 @@ NavierStokesBase::SyncInterp (MultiFab&      CrseSync,
             }
 
             auto const& fsync       = FineSync.array(mfi,dest_comp);
-            amrex::ParallelFor(bx, num_comp, [finedata,fsync,coarsedata,dt_clev,scale_coarse]
+            amrex::ParallelFor(bx, num_comp, [finedata,fsync]
             AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept
             {
-               if ( scale_coarse ) {
-                  coarsedata(i,j,k,n) /= dt_clev;
-               }
                fsync(i,j,k,n) += finedata(i,j,k,n);
             });
+
+            if ( scale_coarse ) {
+                amrex::ParallelFor(cbx, num_comp, [coarsedata,dt_clev]
+                AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept
+                {
+                    coarsedata(i,j,k,n) /= dt_clev;
+                });
+            }
+
+
          }
          else
          {
@@ -3421,13 +3434,10 @@ NavierStokesBase::velocity_advection_update (Real dt)
         auto const& scal = ScalFAB.array();
         auto const& scal_o = U_old.array(mfi,Density);
         auto const& scal_n = U_new.array(mfi,Density);
-        const int numscal = NUM_SCALARS;
-        amrex::ParallelFor(bx, [scal, scal_o, scal_n, numscal]
-        AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        amrex::ParallelFor(bx, NUM_SCALARS, [scal, scal_o, scal_n]
+	AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
-           for (int n = 0; n < numscal; n++) {
-              scal(i,j,k,n) = 0.5 * ( scal_o(i,j,k,n) + scal_n(i,j,k,n) );
-           }
+            scal(i,j,k,n) = 0.5 * ( scal_o(i,j,k,n) + scal_n(i,j,k,n) );
         });
 
         if (getForceVerbose) amrex::Print() << "Calling getForce..." << '\n';
@@ -3441,10 +3451,10 @@ NavierStokesBase::velocity_advection_update (Real dt)
         //
         if (initial_iter && is_diffusive[Xvel]) {
            auto const& force  = tforces.array();
-           amrex::ParallelFor(bx, [force]
-           AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+           amrex::ParallelFor(bx, AMREX_SPACEDIM, [force]
+	   AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
-               force(i,j,k) = 0.0;
+	       force(i,j,k,n) = 0.0;
            });
         }
 

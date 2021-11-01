@@ -343,4 +343,4 @@ namespace derive_functions
     //
   }
 
-};
+}
