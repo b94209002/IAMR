@@ -4,7 +4,7 @@
 #include <MacProj.H>
 #include <NavierStokesBase.H>
 #include <OutFlowBC.H>
-#include <AMReX_MacProjector.H>
+#include <hydro_MacProjector.H>
 
 #ifdef AMREX_USE_EB
 #include <hydro_ebgodunov.H>
@@ -67,7 +67,7 @@ MacProj::Initialize ()
     MacProj::check_umac_periodicity = 1;
 #endif
 
-    // NOTE: IAMR uses a different max_order default than amrex::MacProjector,
+    // NOTE: IAMR uses a different max_order default than hydro::MacProjector,
     // which uses a default of 3
     static int max_order = 4;
     static int agglomeration = 1;
@@ -727,8 +727,13 @@ MacProj::mac_sync_compute (int                   level,
                 const auto& Q = (do_mom_diff == 1 and comp < AMREX_SPACEDIM) ? momenta : Smf;
 
                 amrex::Gpu::DeviceVector<int> iconserv;
-                iconserv.resize(1, 0);
-                iconserv[0] = (advectionType[comp] == Conservative) ? 1 : 0;
+                Vector<int> iconserv_h;
+                iconserv.resize(ncomp);
+                iconserv_h.resize(ncomp, 0);
+                for (int icomp = 0; icomp < ncomp; icomp++) {
+                    iconserv_h[icomp] = (advectionType[comp+icomp] == Conservative) ? 1 : 0;
+                }
+                Gpu::copy(Gpu::hostToDevice, iconserv_h.begin(), iconserv_h.end(), iconserv.begin());
 
 #ifdef AMREX_USE_EB
 		if ( !(ns_level.EBFactory().isAllRegular()) )
@@ -879,10 +884,13 @@ MacProj::mac_sync_compute (int                    level,
                                            : &(ns_level.get_bcrec_scalars_d_ptr())[sync_comp];
 
         Gpu::DeviceVector<int> iconserv;
-        iconserv.resize(ncomp, 0);
+        Vector<int> iconserv_h;
+        iconserv.resize(ncomp);
+        iconserv_h.resize(ncomp, 0);
         for (int i = 0; i < ncomp; ++i) {
-            iconserv[i] = (advectionType[comp+i] == Conservative) ? 1 : 0;
+            iconserv_h[i] = (advectionType[comp+i] == Conservative) ? 1 : 0;
         }
+        Gpu::copy(Gpu::hostToDevice, iconserv_h.begin(), iconserv_h.end(), iconserv.begin());
 
 #ifdef AMREX_USE_EB
 	if ( !(ns_level.EBFactory().isAllRegular()) )
@@ -1348,11 +1356,11 @@ MacProj::mlmg_mac_solve (Amr* a_parent, const MultiFab* cphi, const BCRec& a_phy
     //
     // Location information is not used for non-EB
     //
-    MacProjector macproj( {u_mac}, MLMG::Location::FaceCentroid, // Location of umac (face center vs centroid)
-                          {GetArrOfConstPtrs(bcoefs)}, MLMG::Location::FaceCentroid,  // Location of beta (face center vs centroid)
-                          MLMG::Location::CellCenter,           // Location of solution variable phi (cell center vs centroid)
-                          {geom}, info,
-                          {&Rhs}, MLMG::Location::CellCentroid);  // Location of RHS (cell center vs centroid)
+    Hydro::MacProjector macproj( {u_mac}, MLMG::Location::FaceCentroid, // Location of umac (face center vs centroid)
+                                {GetArrOfConstPtrs(bcoefs)}, MLMG::Location::FaceCentroid,  // Location of beta (face center vs centroid)
+                                MLMG::Location::CellCenter,           // Location of solution variable phi (cell center vs centroid)
+                                {geom}, info,
+                                {&Rhs}, MLMG::Location::CellCentroid);  // Location of RHS (cell center vs centroid)
 
     //
     // Set BCs

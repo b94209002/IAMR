@@ -134,10 +134,10 @@ Diffusion::Diffusion (Amr*               Parent,
             amrex::Abort("Diffusion::Diffusion(): is_diffusive array is not long enough");
 
         if (n_visc < NUM_STATE)
-            amrex::Abort("Diffusion::Diffusion(): visc_coef array is not long enough");
+            amrex::Abort("Diffusion::Diffusion(): TOO FEW diffusion coeffs were given! One for viscosity and one for each tracer are required.");
 
         if (n_visc > NUM_STATE)
-            amrex::Abort("Diffusion::Diffusion(): TOO MANY diffusion coeffs were given!");
+            amrex::Abort("Diffusion::Diffusion(): TOO MANY diffusion coeffs were given! One for viscosity and one for each tracer are required.");
 
         visc_coef.resize(NUM_STATE);
         is_diffusive.resize(NUM_STATE);
@@ -341,7 +341,6 @@ Diffusion::diffuse_scalar (const Vector<MultiFab*>&  S_old,
     LPInfo infon;
     infon.setAgglomeration(agglomeration);
     infon.setConsolidation(consolidation);
-    infon.setMetricTerm(false);
     infon.setMaxCoarseningLevel(0);
     infon.setSemicoarsening(semicoarsening);
     infon.setMaxSemicoarseningLevel(max_semicoarsening_level);
@@ -361,7 +360,6 @@ Diffusion::diffuse_scalar (const Vector<MultiFab*>&  S_old,
     LPInfo infonp1;
     infonp1.setAgglomeration(agglomeration);
     infonp1.setConsolidation(consolidation);
-    infonp1.setMetricTerm(false);
     infonp1.setSemicoarsening(semicoarsening);
     infonp1.setMaxSemicoarseningLevel(max_semicoarsening_level);
 
@@ -457,7 +455,6 @@ Diffusion::diffuse_scalar (const Vector<MultiFab*>&  S_old,
         mgn.apply({&rhs_tmp},{&Soln});
 
         const amrex::MultiFab* weights;
-        const auto& ebf = &(dynamic_cast<EBFArrayBoxFactory const&>(factory));
         weights = &(ebf->getVolFrac());
 
         amrex::single_level_weighted_redistribute(rhs_tmp, Rhs, *weights, 0, nComp, geom);
@@ -737,7 +734,6 @@ Diffusion::diffuse_tensor_velocity (Real                   dt,
          info.setAgglomeration(agglomeration);
          info.setConsolidation(consolidation);
          info.setMaxCoarseningLevel(0);
-         info.setMetricTerm(false);
 
 #ifdef AMREX_USE_EB
          const auto& ebf = &dynamic_cast<EBFArrayBoxFactory const&>(navier_stokes->Factory());
@@ -805,8 +801,7 @@ Diffusion::diffuse_tensor_velocity (Real                   dt,
          //   regridding algorithm buffers the cells flagged for refinement
          //
          const amrex::MultiFab* weights;
-         const auto& ebfactory = dynamic_cast<EBFArrayBoxFactory const&>(navier_stokes->Factory());
-         weights = &(ebfactory.getVolFrac());
+         weights = &(ebf->getVolFrac());
          amrex::single_level_weighted_redistribute(Rhs_tmp, Rhs, *weights, 0, AMREX_SPACEDIM, navier_stokes->Geom());
 #else
          amrex::Copy(Rhs, Rhs_tmp, 0, 0, AMREX_SPACEDIM, 0);
@@ -873,7 +868,6 @@ Diffusion::diffuse_tensor_velocity (Real                   dt,
       LPInfo info;
       info.setAgglomeration(agglomeration);
       info.setConsolidation(consolidation);
-      info.setMetricTerm(false);
       info.setMaxCoarseningLevel(100);
       info.setSemicoarsening(semicoarsening);
       info.setMaxSemicoarseningLevel(max_semicoarsening_level);
@@ -1092,7 +1086,6 @@ Diffusion::diffuse_tensor_Vsync (MultiFab&              Vsync,
     LPInfo info;
     info.setAgglomeration(agglomeration);
     info.setConsolidation(consolidation);
-    info.setMetricTerm(false);
     //info.setMaxCoarseningLevel(100);
 
 #ifdef AMREX_USE_EB
@@ -1258,7 +1251,6 @@ Diffusion::diffuse_Ssync (MultiFab&              Ssync,
     LPInfo info;
     info.setAgglomeration(agglomeration);
     info.setConsolidation(consolidation);
-    info.setMetricTerm(false);
 
 #ifdef AMREX_USE_EB
     const auto& ebf = &dynamic_cast<EBFArrayBoxFactory const&>(navier_stokes->Factory());
@@ -1619,11 +1611,6 @@ Diffusion::getViscTerms (MultiFab&              visc_terms,
 	info.setAgglomeration(agglomeration);
 	info.setConsolidation(consolidation);
 	info.setMaxCoarseningLevel(0);
-	//
-	// For now, assume velocity always goes to tensor sovler, so it will not get here
-	// Otherwise, I *think* we would need to check component and only turn on metric
-	// for Xvel
-	info.setMetricTerm(false);
 
 #ifdef AMREX_USE_EB
 	const auto& ebf = &(dynamic_cast<EBFArrayBoxFactory const&>(navier_stokes->Factory()));
@@ -1746,7 +1733,6 @@ Diffusion::getTensorViscTerms (MultiFab&              visc_terms,
            info.setAgglomeration(agglomeration);
            info.setConsolidation(consolidation);
            info.setMaxCoarseningLevel(0);
-           info.setMetricTerm(false);
 
 #ifdef AMREX_USE_EB
            const auto& ebf = &dynamic_cast<EBFArrayBoxFactory const&>(navier_stokes->Factory());
