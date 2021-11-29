@@ -1139,8 +1139,8 @@ NavierStokes::setPlotVariables()
 }
 
 void
-NavierStokes::writePlotFilePre (const std::string& dir,
-                                std::ostream&  os)
+NavierStokes::writePlotFilePre (const std::string& /*dir*/,
+                                std::ostream&  /*os*/)
 {
 #ifdef AMREX_USE_EB
     if ( set_plot_coveredCell_val )
@@ -1160,7 +1160,7 @@ NavierStokes::writePlotFilePre (const std::string& dir,
 
 void
 NavierStokes::writePlotFilePost (const std::string& dir,
-                                 std::ostream&  os)
+                                 std::ostream&  /*os*/)
 {
     if (level == 0 && ParallelDescriptor::IOProcessor())
     {
