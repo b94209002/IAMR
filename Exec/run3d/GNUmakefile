@@ -10,7 +10,7 @@ TOP = ../..
 #
 
 DIM        = 3
-COMP	   = gcc
+COMP	   = intel
 DEBUG	   = FALSE
 USE_MPI    = TRUE
 USE_OMP    = FALSE
@@ -22,7 +22,7 @@ USE_CUDA = FALSE
 
 PRECISION = DOUBLE
 
-USE_HYPRE = FALSE
+USE_HYPRE = TRUE
 USE_METIS = FALSE
 
 USE_VELOCITY = TRUE

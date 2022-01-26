@@ -80,6 +80,13 @@ NavierStokes::error_setup()
         {
             errtags.push_back(AMRErrorTag(info));
         }
+        else if (ppr.countval("liquid_water_greater")) {
+            int num_val = ppr.countval("liquid_water_greater");
+            Vector<Real> value(num_val);
+            ppr.getarr("liquid_water_greater",value,0,num_val);
+            const std::string field="liquid_water";
+            errtags.push_back(AMRErrorTag(value,AMRErrorTag::VORT,field,info));
+        }
 	// //
 	// // User defined error function:
 	// // Could create an AMRErrorTag::UserFunc as outlined below.

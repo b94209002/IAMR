@@ -465,6 +465,13 @@ NavierStokes::variableSetUp ()
 #endif
 
     //
+    // Liquid water content
+    //
+    derive_lst.add("liquid_water",IndexType::TheCellType(),1,derliquid,the_same_box);
+    derive_lst.addComponent("liquid_water",desc_lst,State_Type,Tracer,1);
+    derive_lst.addComponent("liquid_water",desc_lst,State_Type,Tracer2,1);
+
+    //
     // **************  DEFINE ERROR ESTIMATION QUANTITIES  *************
     //
     error_setup();

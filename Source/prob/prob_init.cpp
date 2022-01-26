@@ -5,6 +5,7 @@ using namespace amrex;
 
 int NavierStokes::probtype = -1;
 
+NavierStokes::RayleighBenard NavierStokes::rb;
 // For now, define pi here, but maybe later make iamr_constants.H
 namespace {
   constexpr Real Pi    = 3.141592653589793238462643383279502884197;
@@ -62,6 +63,15 @@ void NavierStokes::prob_initData ()
     pp.query("forcevort", IC.forcevort);
     pp.query("meanFlowDir", IC.meanFlowDir);
     pp.query("meanFlowMag", IC.meanFlowMag);
+
+    // for Rayleigh-Benard
+    pp.query("D0", rb.D0);
+    pp.query("dD", rb.dD);
+    pp.query("M0", rb.M0);
+    pp.query("dM", rb.dM);
+    pp.query("N2", rb.N2);
+    pp.query("qrad",rb.qrad);
+    pp.query("omega", rb.omega);
 
     //
     // Fill state and, optionally, pressure
@@ -139,11 +149,29 @@ void NavierStokes::prob_initData ()
 			   S_new.array(mfi, Density), nscal,
 			   domain, dx, problo, probhi, IC);
 	}
+        else if ( 12 == probtype )
+        {
+          init_RayleighBenard(vbx, P_new.array(mfi), S_new.array(mfi, Xvel),
+                              S_new.array(mfi, Density), nscal,
+                              domain, dx, problo, probhi, IC);
+	}
 	else
         {
             amrex::Abort("NavierStokes::prob_init: unknown probtype");
         }
     }
+}
+
+void NavierStokes::prob_initData_restart ()
+{
+    ParmParse pp("prob");
+    pp.query("D0", rb.D0);
+    pp.query("dD", rb.dD);
+    pp.query("M0", rb.M0);
+    pp.query("dM", rb.dM);
+    pp.query("N2", rb.N2);
+    pp.query("qrad",rb.qrad);
+    pp.query("omega", rb.omega);
 }
 
 void NavierStokes::init_bubble (Box const& vbx,
@@ -601,4 +629,81 @@ void NavierStokes::init_ConvectedVortex (Box const& vbx,
       scal(i,j,k,nt) = 1.0;
     }
   });
+}
+
+void NavierStokes::init_RayleighBenard (Box const& vbx,
+                                        Array4<Real> const& press,
+                                        Array4<Real> const& vel,
+                                        Array4<Real> const& scal,
+                                        const int nscal,
+                                        Box const& domain,
+                                        GpuArray<Real, AMREX_SPACEDIM> const& dx,
+                                        GpuArray<Real, AMREX_SPACEDIM> const& problo,
+                                        GpuArray<Real, AMREX_SPACEDIM> const& probhi,
+                                        InitialConditions IC)
+{
+  const auto domlo = amrex::lbound(domain);
+
+  //
+  // Velocity already initialized to 0
+  //
+
+  //
+  // Scalars, ordered as Density, Tracer(s), Temp (if using)
+  //
+  const Real Lx    = (probhi[0] - problo[0]);
+
+#if (AMREX_SPACEDIM == 2)
+
+  amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+  {
+    Real x = problo[0] + (i - domlo.x + 0.5)*dx[0];
+    Real y = problo[1] + (j - domlo.y + 0.5)*dx[1];
+
+    const Real pert = 0.5 + IC.pertamp * amrex::Random();
+
+    scal(i,j,k,0) = 1.0;
+    scal(i,j,k,1) = pert*exp(-y/dx[1]);
+    scal(i,j,k,2) = pert*exp(-y/dx[1]);
+
+  });
+
+#elif (AMREX_SPACEDIM == 3)
+
+  const Real Ly    = (probhi[1] - problo[1]);
+  const Real splitz = 0.5*(problo[2] + probhi[2]);
+
+  Real rn;
+  // Create random amplitudes and phases for the perturbation
+
+  // This doens't work for OMP. Just hard-code results below.
+  // amrex::InitRandom(111397);
+  // rn = amrex::Random();
+  // const Real ranampl = 2.*(rn-0.5);
+
+  // rn = amrex::Random();
+  // const Real ranphse1 = 2.*Pi*rn;
+
+  // rn = amrex::Random();
+  // const Real ranphse2 = 2.*Pi*rn;
+
+  const Real ranampl = 2.*(0.6544437533747718 - 0.5);
+  const Real ranphse1 = 2.*Pi*0.1556190326530211;
+  const Real ranphse2 = 2.*Pi*0.4196144025537369;
+
+  amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+  {
+    Real x = problo[0] + (i - domlo.x + 0.5)*dx[0];
+    Real y = problo[1] + (j - domlo.y + 0.5)*dx[1];
+    Real z = problo[2] + (k - domlo.z + 0.5)*dx[2];
+
+    scal(i,j,k,0) = 1.0;
+    Real pert = IC.pertamp * amrex::Random();
+    scal(i,j,k,1) = pert*exp(-z/dx[2]);
+    pert = IC.pertamp * amrex::Random();
+    scal(i,j,k,2) = pert*exp(-z/dx[2]);
+
+  });
+
+#endif
 }

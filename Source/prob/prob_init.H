@@ -123,6 +123,18 @@ void init_ConvectedVortex (amrex::Box const& vbx,
 		      amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const& problo,
 		      amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const& probhi,
 		      InitialConditions IC);
+
+void init_RayleighBenard (amrex::Box const& vbx,
+                          amrex::Array4<amrex::Real> const& press,
+                          amrex::Array4<amrex::Real> const& vel,
+                          amrex::Array4<amrex::Real> const& scal,
+                          const int nscal,
+                          amrex::Box const& domain,
+                          amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const& dx,
+                          amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const& problo,
+                          amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> const& probhi,
+                          InitialConditions IC);
+
 //FIXME - maybe make use of an enum like this?
 //enum struct Prob { HotSpot, bubble };
 
@@ -131,4 +143,18 @@ void init_ConvectedVortex (amrex::Box const& vbx,
 //
 static int probtype;
 
+static void prob_initData_restart();
+// For Rayleigh-Benard
+struct RayleighBenard
+{
+  amrex::Real D0 = 0.0;
+  amrex::Real dD = 1.0;
+  amrex::Real M0 = 0.0;
+  amrex::Real dM = -3.0;
+  amrex::Real N2 = 4.0;
+  amrex::Real qrad = 0.0;
+  amrex::Real omega = 0.0;
+};
+static RayleighBenard rb;
+static RayleighBenard getRayleighBenard () { return rb; }
 #endif

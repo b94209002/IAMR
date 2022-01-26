@@ -20,6 +20,8 @@ USE_OMP     = FALSE
 PROFILE     = FALSE
 
 USE_CUDA = FALSE
+USE_HDF5  = FALSE
+HDF5_HOME = /share/apps/hdf5/1.12.0/openmpi/intel/
 
 USE_SENSEI_INSITU = FALSE
 

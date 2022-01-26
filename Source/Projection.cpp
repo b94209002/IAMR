@@ -56,6 +56,9 @@ namespace
     bool use_harmonic_average = false;
     int max_fmg_iter = 0;
     int max_coarsening_level(-1);
+    bool semicoarsening = 0;
+    int max_semicoarsening_level = 0;
+    bool bottom_verbose = false;
 
     constexpr Real BogusValue = 1.e200;
     constexpr Real SmallValue = 1.e-200;
@@ -84,7 +87,8 @@ Projection::Initialize ()
     pp.query("use_gauss_seidel",    use_gauss_seidel);
     pp.query("use_harmonic_average", use_harmonic_average);
     pp.query("mg_max_coarsening_level", max_coarsening_level);
-
+    pp.query("semicoarsening",      semicoarsening);
+    pp.query("max_semicoarsening_level", max_semicoarsening_level);
 
     // Abort if old verbose flag is found
     if ( pp.countname("v") > 0 ) {
@@ -2509,6 +2513,8 @@ void Projection::doMLMGNodalProjection (int c_lev, int nlevel,
     info.setConsolidation(consolidation);
     // metric term stuff doesn't get used at all for nodal
     //info.setMetricTerm(false);
+    info.setSemicoarsening(semicoarsening);
+    info.setMaxSemicoarseningLevel(max_semicoarsening_level);
 
     //
     // Setup variables to use in projection
