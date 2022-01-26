@@ -11,7 +11,7 @@ godunov.use_force_in_trans = 1
 
 max_step 		= 4000
 
-amr.n_cell              = 128 128 32
+amr.n_cell              = 384 384 32
 
 amr.max_level           = 2
 
@@ -41,7 +41,7 @@ ns.scal_diff_coefs      = 0.0014 0.0014
 geometry.coord_sys   =  0
 
 geometry.prob_lo     =  0. 0. 0.
-geometry.prob_hi     =  4. 4. 1.
+geometry.prob_hi     =  12. 12. 1.
 
 geometry.is_periodic =  1 1 0
 
