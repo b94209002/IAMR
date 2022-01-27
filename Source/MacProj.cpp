@@ -354,7 +354,7 @@ MacProj::mac_project (int             level,
         //
         if (level > 0)
         {
-            const Real mult = 1.0/parent->nCycle(level);
+            const Real mult = 1.0/Real(parent->nCycle(level));
 
             for (int dir = 0; dir < BL_SPACEDIM; dir++)
             {
@@ -838,7 +838,7 @@ MacProj::mac_sync_compute (int                   level,
 
     if (level > 0 && update_fluxreg)
     {
-        const Real mlt =  -1.0/( (double) parent->nCycle(level));
+        const Real mlt =  -1.0/Real(parent->nCycle(level));
         for (int d = 0; d < AMREX_SPACEDIM; ++d)
         {
             for (int comp = 0; comp < NUM_STATE; ++comp)

@@ -1314,7 +1314,7 @@ NavierStokesBase::estTimeStep ()
             {
                 ratio *= parent->nCycle(lev);
             }
-            factor = 1.0/double(ratio);
+            factor = 1.0/Real(ratio);
         }
 
         return factor*fixed_dt;
@@ -1418,7 +1418,7 @@ NavierStokesBase::estTimeStep ()
          {
            ratio *= parent->nCycle(lev);
          }
-         factor = 1.0/double(ratio);
+         factor = 1.0/Real(ratio);
       }
 
       estdt = factor*init_dt;
@@ -4899,7 +4899,6 @@ NavierStokesBase::InitialRedistribution ()
     FillPatchIterator S_fpi(*this, S_new, nghost_state(), state[State_Type].curTime(),
                             State_Type, 0, NUM_STATE);
     MultiFab& Smf=S_fpi.get_mf();
-    EB_set_covered(Smf, 0.0);
 
     MultiFab tmp( grids, dmap, NUM_STATE, nghost_state(), MFInfo(), Factory() );
     MultiFab::Copy(tmp, Smf, 0, 0, NUM_STATE, nghost_state());

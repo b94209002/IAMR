@@ -375,15 +375,6 @@ NavierStokes::initData ()
       Save_new.setVal(0.);
     }
 
-#ifdef AMREX_USE_EB
-    //
-    // Set EB covered cells to some typical value for that field
-    // FIXME -- Not sure IAMR really needs this...
-    {
-      MultiFab&   S_new    = get_new_data(State_Type);
-      set_body_state(S_new);
-    }
-#endif
 
 #ifdef BL_USE_VELOCITY
     {
@@ -453,6 +444,31 @@ NavierStokes::initData ()
     }
 #endif /*BL_USE_VELOCITY*/
 
+#ifdef AMREX_USE_EB
+    //
+    // Perform redistribution on initial fields
+    // This changes the input velocity fields
+    //
+    InitialRedistribution();
+
+    //
+    // Make sure EB covered cell are set, and that it's not zero, as we
+    // sometimes divide by rho.
+    //
+    {
+        MultiFab&   S_new    = get_new_data(State_Type);
+        EB_set_covered(S_new, COVERED_VAL);
+
+        //
+        // In some cases, it may be necessary for the covered cells to
+        // contain a value typical (or around the same order of magnitude)
+        // to the uncovered cells (e.g. if code to compute variable
+        // viscosity fails for COVERED_VAL).
+        //
+        // set_body_state(S_new);
+    }
+#endif
+
     //
     // Make rho MFs with filled ghost cells
     // Not really sure why these are needed as opposed to just filling the
@@ -483,14 +499,6 @@ NavierStokes::initData ()
     }
 
     old_intersect_new          = grids;
-
-#ifdef AMREX_USE_EB
-    //
-    // Perform redistribution on initial fields
-    // This changes the input velocity fields
-    //
-    InitialRedistribution();
-#endif
 
 #ifdef AMREX_PARTICLES
     initParticleData ();
@@ -1260,6 +1268,21 @@ NavierStokes::writePlotFilePost (const std::string& dir,
     }
 #endif
 
+#ifdef AMREX_USE_EB
+    if ( set_plot_coveredCell_val )
+    {
+        for (std::size_t i =0; i < state.size(); i++)
+        {
+            auto& sdata = state[i].newData();
+	    // only cell-centered state data goes into plotfile
+            if ( sdata.ixType().cellCentered() ){
+                // put COVERED_VAL back or set_body_state
+                EB_set_covered(sdata, COVERED_VAL);
+            }
+        }
+    }
+#endif
+
 }
 
 std::unique_ptr<MultiFab>
@@ -1446,14 +1469,6 @@ NavierStokes::post_init_press (Real&        dt_init,
             // progress with p_old==p_new.
             getLevel(k).resetState(strt_time, dt_init, dt_init);
         }
-
-	// Make sure rho_ctime matches reset State
-	// FIXME? Why isn't this called on all levels when rho has been altered
-	// on all levels via advance, avgDown and resetState called on all levels.
-	// Just testing things out with the regression tests shows that this is
-	// needed (for both EB and nonEB), just doing level 0 is fine, and moving it
-	// outside the init_iters loop is fine (no changes to any regression tests).
-        make_rho_curr_time();
 
         NavierStokes::initial_iter = false;
     }
