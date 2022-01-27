@@ -28,7 +28,7 @@ amr.v                   = 1
 #amr.restart             = chk02200
 amr.check_int		= 200
 
-amr.plot_int		= 100
+amr.plot_int		= 10
 
 ns.cfl                  = 0.7  # CFL number used to set dt
 
