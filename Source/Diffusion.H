@@ -182,16 +182,6 @@ public:
 
     static int set_rho_flag (const DiffusionForm compDiffusionType);
 
-    static bool are_any (const amrex::Vector<DiffusionForm>& diffusionType,
-                         const DiffusionForm                 testForm,
-                         const int                           sComp,
-                         const int                           nComp);
-
-    static int how_many (const amrex::Vector<DiffusionForm>& diffusionType,
-                         const DiffusionForm                 testForm,
-                         const int                           sComp,
-                         const int                           nComp);
-
     static void setDomainBC (std::array<amrex::LinOpBCType,AMREX_SPACEDIM>& mlmg_lobc,
 			     std::array<amrex::LinOpBCType,AMREX_SPACEDIM>& mlmg_hibc,
 			     const amrex::BCRec&                            bc);
@@ -229,12 +219,12 @@ public:
 #endif
   
     static void computeExtensiveFluxes(amrex::MLMG&            a_mg,
-				       amrex::MultiFab&        Soln,
-				       amrex::MultiFab* const* flux,
-				       const int               fluxComp,
-				       const int               nomp,
-				       const amrex::Geometry*  a_geom,
-				       const amrex::Real       fac );
+                                       amrex::MultiFab&        Soln,
+                                       amrex::MultiFab* const* flux,
+                                       const int               fluxComp,
+                                       const int               nomp,
+                                       amrex::MultiFab*        area,
+                                       const amrex::Real       fac );
 
 protected:
 
