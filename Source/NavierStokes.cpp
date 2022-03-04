@@ -737,7 +737,7 @@ NavierStokes::scalar_advection (Real dt,
     // Floor small values of states to be extrapolated
     floor(Smf);
 
-    if ( advection_scheme == "Godunov_PLM" || advection_scheme == "Godunov_PPM" )
+    if ( advection_scheme == "Godunov_PLM" || advection_scheme == "Godunov_PPM" || advection_scheme == "BDS")
     {
         MultiFab visc_terms(grids,dmap,num_scalars,nghost_force(),MFInfo(),Factory());
         FillPatchIterator U_fpi(*this,visc_terms,nghost_state(),prev_time,State_Type,Xvel,BL_SPACEDIM);
@@ -1495,10 +1495,9 @@ NavierStokes::mac_sync ()
     // the correction is the advective tendency of the new velocities.
     //
     MultiFab& S_new = get_new_data(State_Type);
-    mac_projector->mac_sync_compute(level,Ucorr,u_mac,Vsync,Ssync,Rh,
+    mac_projector->mac_sync_compute(level,Ucorr,u_mac,Vsync,Ssync,
 				    level > 0 ? &getAdvFluxReg(level) : 0,
-				    advectionType, prev_time,
-				    prev_pres_time,dt,
+				    advectionType, prev_time,dt,
 				    NUM_STATE,be_cn_theta,
 				    do_mom_diff);
     //
