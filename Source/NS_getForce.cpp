@@ -262,7 +262,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
      }
 
      // We are filling density, trac and trac2
-     if ( scomp == 2 && ncomp >= 3) {
+     if ( scomp == AMREX_SPACEDIM && ncomp >= 3) {
      auto const& frc = force.array();
      auto const& vel = Vel.array();
      amrex::ParallelFor(bx, [frc, vel, rb, dx, H, dom_lo, Pi]
