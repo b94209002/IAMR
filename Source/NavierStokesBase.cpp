@@ -8,11 +8,12 @@
 #include <AMReX_Utility.H>
 #include <AMReX_PhysBCFunct.H>
 #include <AMReX_MLNodeLaplacian.H>
+#include <AMReX_FillPatchUtil.H>
 #include <NavierStokesBase.H>
 #include <NAVIERSTOKES_F.H>
 #include <NSB_K.H>
 #include <NS_util.H>
-#include <AMReX_FillPatchUtil.H>
+#include <iamr_constants.H>
 
 #include <hydro_mol.H>
 #include <hydro_godunov.H>
@@ -25,6 +26,10 @@
 #include <hydro_ebmol.H>
 #include <hydro_ebgodunov.H>
 #include <hydro_redistribution.H>
+#endif
+
+#ifdef AMREX_USE_TURBULENT_FORCING
+#include <TurbulentForcing_params.H>
 #endif
 
 
@@ -2476,6 +2481,14 @@ NavierStokesBase::post_restart ()
     }
   }
 
+// FIXME - should remove ifdef and use runtime parameter instead...
+#ifdef AMREX_USE_TURBULENT_FORCING
+  //
+  // Initialize data structures used for homogenous isentropic forced turbulence.
+  // Only need to do it once.
+  if (level == 0)
+      TurbulentForcing::init_turbulent_forcing(geom.ProbLoArray(),geom.ProbHiArray());
+#endif
 
 #ifdef AMREX_PARTICLES
     post_restart_particle ();
@@ -4805,7 +4818,7 @@ NavierStokesBase::ComputeAofs ( int comp, int ncomp,
                          0, false,
                          AMREX_D_DECL(cfluxes[0],cfluxes[1],cfluxes[2]),
                          0, forcing_term, 0, divu, bcrec_d.dataPtr(),
-                         geom, iconserv_h, dt);
+                         geom, iconserv_h, dt, is_velocity);
     }
     else if (advection_scheme == "Godunov_PLM" || advection_scheme == "Godunov_PPM" || (advection_scheme == "BDS" && is_velocity) )
     {
