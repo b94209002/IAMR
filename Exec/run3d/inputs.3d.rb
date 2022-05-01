@@ -9,6 +9,8 @@ ns.do_cons_trac2 = 1
 godunov.use_ppm = 1
 godunov.use_force_in_trans = 1
 
+ns.getForceVerbose = 2
+
 max_step 		= 4000
 
 amr.n_cell              = 384 384 32

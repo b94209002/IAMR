@@ -343,7 +343,8 @@ NavierStokesBase::getForce (FArrayBox&       force,
      // We are filling scalers at once
      if ( scomp == AMREX_SPACEDIM && ncomp == 3 ) {
      auto const& frc = force.array();
-     auto const& vel = Vel.array();
+     auto const& vel = Vel.array(); 
+     amrex::Print() << "rb.dD = " << rb.dD << std::endl;
      amrex::ParallelFor(bx, [frc, vel, rb, dx, H, dom_lo, Pi]
      AMREX_GPU_DEVICE(int i, int j, int k) noexcept
      {
