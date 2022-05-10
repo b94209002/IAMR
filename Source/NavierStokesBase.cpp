@@ -2934,7 +2934,7 @@ NavierStokesBase::scalar_advection_update (Real dt,
                 tforces.resize(bx,num_comp);
                 // tforces protected from early destruction by Gpu::synchronize at end of loop.
                 getForce(tforces,bx,sComp,num_comp,halftime,Vel_fab,Scal,0,mfi);
-                amrex::Print() << "where is Nans" << std::endl;
+//                amrex::Print() << "where is Nans" << std::endl;
                 const auto& Snew = S_new[mfi].array(sComp);
                 const auto& Sold = S_old[mfi].const_array(sComp);
                 const auto& advc = Aofs[mfi].const_array(sComp);
