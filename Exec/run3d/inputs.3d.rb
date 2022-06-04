@@ -6,6 +6,9 @@
 ns.do_mom_diff = 1
 ns.do_cons_trac = 1
 ns.do_cons_trac2 = 1
+
+#ns.advection_scheme = BDS
+ns.advection_scheme = godunov
 godunov.use_ppm = 1
 godunov.use_force_in_trans = 1
 
