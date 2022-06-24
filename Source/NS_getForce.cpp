@@ -158,15 +158,15 @@ NavierStokesBase::getForce (FArrayBox&       force,
 #if ( AMREX_SPACEDIM == 2 )
          frc(i,j,k,0) = 0.0;
          Real y = dom_lo[1] + (j + 0.5_rt) * dx[1];
-         Real m = aux(i,j,k,2) + rb.M0 + rb.dM*y;
-         Real d = aux(i,j,k,1) + rb.D0 + rb.dD*y;
+         Real m = aux(i,j,k,2) + rb.M0 + rb.dMz*y;
+         Real d = aux(i,j,k,1) + rb.D0 + rb.dDz*y;
          frc(i,j,k,1) = std::max(m, d - rb.N2*y);
 #elif ( AMREX_SPACEDIM == 3 )
 	 frc(i,j,k,0) = aux(i,j,k,0) * rb.omega * state(i,j,k,1);
          frc(i,j,k,1) = -aux(i,j,k,0) * rb.omega * state(i,j,k,0);
          Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
-         Real m = aux(i,j,k,2) + rb.M0 + rb.dM*z;
-         Real d = aux(i,j,k,1) + rb.D0 + rb.dD*z;
+         Real m = aux(i,j,k,2) + rb.M0 + rb.dMz*z;
+         Real d = aux(i,j,k,1) + rb.D0 + rb.dDz*z;
          frc(i,j,k,2) = std::max(m, d - rb.N2*z);
 #endif
 	 // define dD = (DH-D0)/H and dM = (MH-M0)/H
@@ -208,8 +208,8 @@ NavierStokesBase::getForce (FArrayBox&       force,
          {
              Real y = dom_lo[1] + (k + 0.5_rt) * dx[1];
              frc(i,j,k,2) = 0.0_rt;
-             frc(i,j,k,3) = -vel(i,j,k,1)*rb.dD - rb.qrad * sin(Pi*y/H);
-             frc(i,j,k,4) = -vel(i,j,k,1)*rb.dM - 0.5 * rb.qrad * sin(Pi*y/H);
+             frc(i,j,k,3) = -vel(i,j,k,1)*rb.dDz - rb.qrad * sin(Pi*y/H);
+             frc(i,j,k,4) = -vel(i,j,k,1)*rb.dMz - 0.5 * rb.qrad * sin(Pi*y/H);
          });
      }
 
@@ -222,8 +222,8 @@ NavierStokesBase::getForce (FArrayBox&       force,
      {
          Real y = dom_lo[1] + (k + 0.5_rt) * dx[1];
          frc(i,j,k,0) = 0.0_rt;
-         frc(i,j,k,1) = -vel(i,j,k,1)*rb.dD - rb.qrad * sin(Pi*y/H);
-         frc(i,j,k,2) = -vel(i,j,k,1)*rb.dM - 0.5 * rb.qrad * sin(Pi*y/H);
+         frc(i,j,k,1) = -vel(i,j,k,1)*rb.dDz - rb.qrad * sin(Pi*y/H);
+         frc(i,j,k,2) = -vel(i,j,k,1)*rb.dMz - 0.5 * rb.qrad * sin(Pi*y/H);
      });
      }
 
@@ -246,7 +246,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
      AMREX_GPU_DEVICE(int i, int j, int k) noexcept
      {
          Real y = dom_lo[1] + (k + 0.5_rt) * dx[1];
-         frc(i,j,k,0) = -vel(i,j,k,1)*rb.dD - rb.qrad * sin(Pi*y/H);
+         frc(i,j,k,0) = -vel(i,j,k,1)*rb.dDz - rb.qrad * sin(Pi*y/H);
      });
      }
      // We are filling trac and trac2 
@@ -257,8 +257,8 @@ NavierStokesBase::getForce (FArrayBox&       force,
      AMREX_GPU_DEVICE(int i, int j, int k) noexcept
      {
          Real y = dom_lo[1] + (k + 0.5_rt) * dx[1];
-         frc(i,j,k,0) = -vel(i,j,k,1)*rb.dD - rb.qrad * sin(Pi*y/H);
-	 frc(i,j,k,1) = -vel(i,j,k,1)*rb.dM - 0.5 * rb.qrad * sin(Pi*y/H);
+         frc(i,j,k,0) = -vel(i,j,k,1)*rb.dDz - rb.qrad * sin(Pi*y/H);
+	 frc(i,j,k,1) = -vel(i,j,k,1)*rb.dMz - 0.5 * rb.qrad * sin(Pi*y/H);
      });
      }
 
@@ -270,7 +270,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
      AMREX_GPU_DEVICE(int i, int j, int k) noexcept
      {
          Real y = dom_lo[1] + (k + 0.5_rt) * dx[1];
-         frc(i,j,k,0) = -vel(i,j,k,1)*rb.dM - 0.5 * rb.qrad * sin(Pi*y/H);
+         frc(i,j,k,0) = -vel(i,j,k,1)*rb.dMz - 0.5 * rb.qrad * sin(Pi*y/H);
      });
      }
 #elif ( AMREX_SPACEDIM == 3)
@@ -286,8 +286,8 @@ NavierStokesBase::getForce (FArrayBox&       force,
          {
              Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
              frc(i,j,k,3) = 0.0_rt;
-             frc(i,j,k,4) = -vel(i,j,k,2)*rb.dD - rb.qrad * sin(Pi*z/H);
-             frc(i,j,k,5) = -vel(i,j,k,2)*rb.dM - 0.5 * rb.qrad * sin(Pi*z/H);
+             frc(i,j,k,4) = -vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H);
+             frc(i,j,k,5) = -vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H);
          });
      }
      // We are filling scalers at once
@@ -299,8 +299,8 @@ NavierStokesBase::getForce (FArrayBox&       force,
      {
          Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
          frc(i,j,k,0) = 0.0_rt;
-         frc(i,j,k,1) = -vel(i,j,k,2)*rb.dD - rb.qrad * sin(Pi*z/H);
-         frc(i,j,k,2) = -vel(i,j,k,2)*rb.dM - 0.5 *rb.qrad * sin(Pi*z/H);
+         frc(i,j,k,1) = -vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H);
+         frc(i,j,k,2) = -vel(i,j,k,2)*rb.dMz - 0.5 *rb.qrad * sin(Pi*z/H);
      });
      }
 
@@ -322,7 +322,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
      AMREX_GPU_DEVICE(int i, int j, int k) noexcept
      {
          Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
-         frc(i,j,k,0) = -vel(i,j,k,2)*rb.dD - rb.qrad * sin(Pi*z/H);
+         frc(i,j,k,0) = -vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H);
      });
      }
      // We are filling trac and trac2
@@ -333,8 +333,8 @@ NavierStokesBase::getForce (FArrayBox&       force,
      AMREX_GPU_DEVICE(int i, int j, int k) noexcept
      {
          Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
-         frc(i,j,k,0) = -vel(i,j,k,2)*rb.dD - rb.qrad * sin(Pi*z/H);
-	 frc(i,j,k,1) = -vel(i,j,k,2)*rb.dM - 0.5 * rb.qrad * sin(Pi*z/H);
+         frc(i,j,k,0) = -vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H);
+	 frc(i,j,k,1) = -vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H);
      });
      }
      // We are filling trac2
@@ -345,7 +345,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
      AMREX_GPU_DEVICE(int i, int j, int k) noexcept
      {
          Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
-         frc(i,j,k,0) = -vel(i,j,k,2)*rb.dM - 0.5 * rb.qrad * sin(Pi*z/H);
+         frc(i,j,k,0) = -vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H);
      });
      }
 #endif     

@@ -324,8 +324,8 @@ namespace derive_functions
       const Real z = z_lo + (k + .5) * dz;
 #endif
       const Real H = z_hi - z_lo;
-      const Real m = in_dat(i,j,k,1) + rb.M0 + rb.dM*z;
-      const Real d = in_dat(i,j,k,0) + rb.D0 + rb.dD*z;
+      const Real m = in_dat(i,j,k,1) + rb.M0 + rb.dMz*z;
+      const Real d = in_dat(i,j,k,0) + rb.D0 + rb.dDz*z;
 
       const Real tmp = std::max(0., m - d + rb.N2*z);
       der(i,j,k) = tmp/H/rb.N2;

@@ -148,9 +148,11 @@ static void prob_initData_restart();
 struct RayleighBenard
 {
   amrex::Real D0 = 0.0;
-  amrex::Real dD = 1.0;
+  amrex::Real dDy = 0.0;
+  amrex::Real dDz = 1.0;
   amrex::Real M0 = 0.0;
-  amrex::Real dM = -3.0;
+  amrex::Real dMy = 0.0;
+  amrex::Real dMz = -3.0;
   amrex::Real N2 = 4.0;
   amrex::Real qrad = 0.0;
   amrex::Real omega = 0.0;
