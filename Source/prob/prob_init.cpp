@@ -168,9 +168,11 @@ void NavierStokes::prob_initData_restart ()
 {
     ParmParse pp("prob");
     pp.query("D0", rb.D0);
-    pp.query("dD", rb.dD);
+    pp.query("dDy", rb.dDy);
+    pp.query("dDz", rb.dDz);
     pp.query("M0", rb.M0);
-    pp.query("dM", rb.dM);
+    pp.query("dMy", rb.dMy);
+    pp.query("dMz", rb.dMz);
     pp.query("N2", rb.N2);
     pp.query("qrad",rb.qrad);
     pp.query("omega", rb.omega);
