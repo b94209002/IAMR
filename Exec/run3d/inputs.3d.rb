@@ -66,9 +66,9 @@ amr.derive_plot_vars    = mag_vort  liquid_water
 # Problem parameters
 prob.probtype = 12
 prob.D0 = 0.
-prob.dD = 1.
+prob.dDz = 1.
 prob.M0 = 0.
-prob.dM = -3.
+prob.dMz = -3.
 prob.N2 = 4.
 prob.qrad = 0.
 prob.omega = 0.
