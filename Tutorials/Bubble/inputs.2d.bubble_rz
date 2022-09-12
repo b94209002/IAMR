@@ -1,43 +1,24 @@
 
 #*******************************************************************************
-# INPUTS.2D.HOTSPOT
+# INPUTS.2D.BUBBLE_RZ
 #*******************************************************************************
-
-ns.do_temp=1
-ns.temp_cond_coef=1.e-8
-
-#force tiling for testing
-fabarray.mfiter_tile_size = 8 8 8
 
 # Maximum number of coarse grid timesteps to be taken, if stop_time is
 #  not reached first.
-max_step 		= 5
+max_step 		= 10
 
-# Time at which calculation stops, if max_step is not reached first.
-stop_time 		= 1.0
+# Refinement criterion, use vorticity and presence of tracer
+amr.refinement_indicators = tracer vorticity
 
-# Refinement criterion, use temperature
-amr.refinement_indicators = hi_temp Tdiff
+amr.tracer.value_greater = 0.1
+amr.tracer.field_name = tracer
 
-amr.hi_temp.max_level = 1
-amr.hi_temp.value_greater = 1.01
-amr.hi_temp.field_name = temp
-
-amr.Tdiff.adjacent_difference_greater = 0.005
-amr.Tdiff.field_name = temp
-#amr.Tdiff.start_time = 0.001
-#amr.Tdiff.end_name = 0.002
-
-#*******************************************************************************
-# Algorithm options 
-
-ns.advection_scheme = MOL
-ns.do_trac2 = 1
+amr.vorticity.vorticity_greater = 1.0
 
 #*******************************************************************************
 
 # Number of cells in each coordinate direction at the coarsest level
-amr.n_cell 		= 32 32 
+amr.n_cell 		= 64 128
 
 #*******************************************************************************
 
@@ -67,17 +48,17 @@ amr.v                   = 1
 #*******************************************************************************
 
 # Interval (in number of coarse timesteps) between checkpoint(restart) files
-amr.check_int		= 100
+amr.check_int		= 10 
 
 #*******************************************************************************
 
 # Interval (in number of coarse timesteps) between plot files
-amr.plot_int		= 100
+amr.plot_int		= 10
 
 #*******************************************************************************
 
 # CFL number to be used in calculating the time step : dt = dx / max(velocity)
-ns.cfl                  = 0.5  # CFL number used to set dt
+ns.cfl                  = 0.9  # CFL number used to set dt
 
 #*******************************************************************************
 
@@ -87,27 +68,27 @@ ns.init_shrink          = 0.3  # factor which multiplies the very first time ste
 #*******************************************************************************
 
 # Viscosity coefficient 
-ns.vel_visc_coef        = 0.001
+ns.vel_visc_coef        = 0. #001
 
 #*******************************************************************************
 
 # Diffusion coefficient for first scalar
-ns.scal_diff_coefs      = 0.001 0.003
+ns.scal_diff_coefs      = 0.001
 
 #*******************************************************************************
 
 # Forcing term defaults to  rho * abs(gravity) "down"
-ns.gravity              = -9.8
+ns.gravity              =  -9.8
 
 #*******************************************************************************
 
 # Set to 0 if x-y coordinate system, set to 1 if r-z.
-geometry.coord_sys   =  0
+geometry.coord_sys   =  1
 
 #*******************************************************************************
 
 # Physical dimensions of the low end of the domain.
-geometry.prob_lo     =  -1. 0. 
+geometry.prob_lo     =  0. 0. 
 
 # Physical dimensions of the high end of the domain.
 geometry.prob_hi     =  1. 2. 
@@ -120,10 +101,10 @@ geometry.is_periodic =  0 0
 #*******************************************************************************
 
 # Boundary conditions on the low end of the domain.
-ns.lo_bc             = 5 4  
+ns.lo_bc             = 3 4  
 
 # Boundary conditions on the high end of the domain.
-ns.hi_bc             = 5 2  
+ns.hi_bc             = 4 4  
 
 # 0 = Interior/Periodic  3 = Symmetry
 # 1 = Inflow             4 = SlipWall
@@ -132,18 +113,13 @@ ns.hi_bc             = 5 2
 #*******************************************************************************
 
 # Problem parameters
-prob.probtype = 6
-prob.blob_center = 0.0 0.65 
+prob.probtype = 2
+prob.blob_center = 0.0 1.5 
 prob.blob_radius = 0.2
-# Background density is 1. Density is reduced by a factor of density_ic inside
+# Background density is 1. Density is incresed by a factor of density_ic inside
 # the bubble
 prob.density_ic = 2.0
 # Can also set up a flow, defaults to zero
 #prob.velocity_ic = 0. 0. 0.
 
 #*******************************************************************************
-
-# Factor by which grids must be coarsenable.
-amr.blocking_factor     = 8
-amr.grid_eff = 0.95
-
