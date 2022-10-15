@@ -609,7 +609,7 @@ MacProj::mac_sync_compute (int                   level,
             // Compute total forcing terms.
             //
             ns_level.getForce(forcing_term->get(Smfi),gbx,0,num_state_comps,
-                              prev_time,Smf[Smfi],rhoMF[Smfi],0,Smfi);
+                              prev_time,Smf[Smfi],Smf[Smfi],Density,Smfi);
 
             for (int comp = 0; comp < num_state_comps; ++comp)
             {
