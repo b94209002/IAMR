@@ -5,7 +5,6 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_ParmParse.H>
 #include <NavierStokesBase.H>
-#include <NS_BC.H>
 #include <AMReX_BLProfiler.H>
 #include <Projection.H>
 #include <OutFlowBC.H>
@@ -33,7 +32,6 @@ const Real* fabdat = (fab).dataPtr();
 const int* boxlo = (box).loVect();           \
 const int* boxhi = (box).hiVect();
 
-int  Projection::P_code              = -1;
 int  Projection::proj_2              = 1;
 int  Projection::verbose             = 0;
 Real Projection::proj_tol            = 1.0e-12;
@@ -2031,25 +2029,13 @@ Projection::computeRhoG(FArrayBox*         rhoFab,
 	    }
 	  }
 #else
-	  const Box& domain = geom.Domain();
-	  const auto domlo = amrex::lbound(domain);
-	  const auto domhi = amrex::ubound(domain);
+          const Box& domain = geom.Domain();
+          const auto domlo = amrex::lbound(domain);
+          const auto domhi = amrex::ubound(domain);
 
-	  // fixme? Could make use of NSB::m_bcrec_scalars here.
-	  int        lo_bc[AMREX_SPACEDIM];
-	  int        hi_bc[AMREX_SPACEDIM];
-	  //
-	  // change from phys_bcs of Inflow, SlipWall, etc.
-	  // to mathematical bcs of EXT_DIR, FOEXTRAP, etc.
-	  //
-	  for (int i = 0; i < AMREX_SPACEDIM; i++)
-	  {
-	      const int* lbc = phys_bc->lo();
-	      const int* hbc = phys_bc->hi();
-
-	      lo_bc[i]=scalar_bc[lbc[i]];
-	      hi_bc[i]=scalar_bc[hbc[i]];
-	  }
+          NavierStokesBase* ns = dynamic_cast<NavierStokesBase*>(LevelData[0]);
+          const auto lo_bc = ns->m_bcrec_scalars[0].lo();
+          const auto hi_bc = ns->m_bcrec_scalars[0].hi();
 
 	  //
 	  // fixme? - TODO: Could parallelize here by dividing the loop over i (or j)
