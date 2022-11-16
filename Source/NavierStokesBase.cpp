@@ -565,20 +565,13 @@ NavierStokesBase::Initialize ()
 
 #ifdef AMREX_USE_EB
     //
-    // EB Godunov restrictions
+    // Advection scheme restrictions
     //
     if ( advection_scheme == "Godunov_PPM" || advection_scheme == "BDS") {
         amrex::Abort("This advection_scheme is not implemented for EB. Please use Godunov_PLM (default)");
     }
     if ( godunov_use_forces_in_trans ) {
         amrex::Abort("use_forces_in_trans not implemented within EB Godunov. Set godunov.use_forces_in_trans=0.");
-    }
-
-    //
-    // BDS restrictions
-    //
-    if (advection_scheme == "BDS"){
-        amrex::Abort("BDS not implemented with Embedded Boundaries.");
     }
 
     //
@@ -1111,7 +1104,8 @@ NavierStokesBase::create_umac_grown (int nGrow,
         {
             //
             // BDS needs physical BCs filled.
-            // Godunov needs periodic ghosts filled (and handles physical BCs internally).
+            // Godunov needs periodic and coarse-fine ghosts filled (and handles
+	    // physical BCs internally).
             //
             Real fake_time = 0.;
             amrex::FillPatchSingleLevel(u_mac[idim], IntVect(nGrow), fake_time,
@@ -4842,9 +4836,6 @@ NavierStokesBase::ComputeAofs ( MultiFab& advc, int a_comp, // Advection term "A
     std::string scheme   = (advection_scheme=="Godunov_PLM" || advection_scheme=="Godunov_PPM")
                            ? "Godunov" : advection_scheme;
     bool godunov_use_ppm = (advection_scheme == "Godunov_PPM") ? true : false ;
-
-    // No BDS for velocity for now...
-    if (scheme == "BDS" && is_velocity) { scheme = "Godunov"; }
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
