@@ -82,6 +82,7 @@ void NavierStokes::prob_initData ()
     pp.query("dMy", rb.dMy);
     pp.query("dMz", rb.dMz);
     pp.query("N2", rb.N2);
+    pp.query("U0", rb.U0);
     pp.query("qrad",rb.qrad);
     pp.query("omega", rb.omega);
 
@@ -184,6 +185,7 @@ void NavierStokes::prob_initData_restart ()
     pp.query("dMy", rb.dMy);
     pp.query("dMz", rb.dMz);
     pp.query("N2", rb.N2);
+    pp.query("U0", rb.U0);
     pp.query("qrad",rb.qrad);
     pp.query("omega", rb.omega);
 }

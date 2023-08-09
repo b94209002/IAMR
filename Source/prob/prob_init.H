@@ -156,6 +156,7 @@ struct RayleighBenard
   amrex::Real dMy = 0.0;
   amrex::Real dMz = -3.0;
   amrex::Real N2 = 4.0;
+  amrex::Real U0 = 0.0;
   amrex::Real qrad = 0.0;
   amrex::Real omega = 0.0;
 };
