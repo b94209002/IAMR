@@ -1,7 +1,3 @@
-//fixme, for writesingle level plotfile
-//#include<AMReX_PlotFileUtil.H>
-//
-
 #include <AMReX_Geometry.H>
 #include <AMReX_ParmParse.H>
 #include <NavierStokesBase.H>
@@ -17,20 +13,6 @@
 
 
 using namespace amrex;
-
-#define DEF_LIMITS(fab,fabdat,fablo,fabhi)   \
-const int* fablo = (fab).loVect();           \
-const int* fabhi = (fab).hiVect();           \
-Real* fabdat = (fab).dataPtr();
-
-#define DEF_CLIMITS(fab,fabdat,fablo,fabhi)  \
-const int* fablo = (fab).loVect();           \
-const int* fabhi = (fab).hiVect();           \
-const Real* fabdat = (fab).dataPtr();
-
-#define DEF_BOX_LIMITS(box,boxlo,boxhi)   \
-const int* boxlo = (box).loVect();           \
-const int* boxhi = (box).hiVect();
 
 int  Projection::proj_2              = 1;
 int  Projection::verbose             = 0;
@@ -96,7 +78,7 @@ Projection::Initialize ()
     if (!old_proj.empty()){
         Print()<<"All runtime options related to the nodal projection now use 'nodal_proj'.\n"
                <<"Found these depreciated entries in the parameters list: \n";
-        for ( auto param : old_proj ) {
+        for ( auto const& param : old_proj ) {
             Print()<<"  "<<param<<"\n";
         }
         amrex::Abort("Replace 'proj' prefix with 'nodal_proj' in inputs");
@@ -137,11 +119,6 @@ Projection::Projection (Amr*   _parent,
     // size the EB factory array
     ebfactory.resize(maxlev + 1);
 #endif
-}
-
-Projection::~Projection ()
-{
-  if (verbose) amrex::Print() << "Deleting projector\n";
 }
 
 //
@@ -247,8 +224,8 @@ Projection::level_project (int             level,
     const BoxArray& P_grids = P_old.boxArray();
     const DistributionMapping& P_dmap = P_old.DistributionMap();
 
-    NavierStokesBase* ns = dynamic_cast<NavierStokesBase*>(&parent->getLevel(level));
-    AMREX_ASSERT(!(ns==0));
+    auto* ns = dynamic_cast<NavierStokesBase*>(&parent->getLevel(level));
+    AMREX_ASSERT(ns != nullptr);
 
     //
     //  NOTE: IT IS IMPORTANT TO DO THE BOUNDARY CONDITIONS BEFORE
@@ -262,7 +239,7 @@ Projection::level_project (int             level,
     //       a new pressure at level-1.
     if (level != 0)
     {
-      LevelData[level]->FillCoarsePatch(P_new,0,cur_pres_time,Press_Type,0,1);
+        LevelData[level]->FillCoarsePatch(P_new,0,cur_pres_time,Press_Type,0,1);
     }
 
     const int nGrow = (level == 0  ?  0  :  -1);
@@ -303,12 +280,10 @@ Projection::level_project (int             level,
 
     MultiFab& Gp = ns->get_old_data(Gradp_Type);
 
-#ifndef NDEBUG
 #ifdef AMREX_USE_EB
-    // fixme - deal with case where covered cells are set to zero
-    //   there's probably a better way to handle this..
-    EB_set_covered(rho_half,0,1,1,1.2345e40);
-#endif
+    // We set this to a non-zero value so we don't have to
+    // protect against divide by 0 later
+    EB_set_covered(rho_half,0,1,1,1.2345e20);
 #endif
 
 #ifdef _OPENMP
@@ -334,7 +309,7 @@ Projection::level_project (int             level,
     //   compute BC for phi, so make sure this call comes after those are set,
     //   but before fields are scaled by r or rho is set to 1/rho.
     //
-    Real gravity = ns->getGravity();
+    Real gravity = NavierStokesBase::getGravity();
     if (OutFlowBC::HasOutFlowBC(phys_bc) && (have_divu || std::fabs(gravity) > 0.0)
                                          && do_outflow_bcs)
     {
@@ -394,14 +369,14 @@ Projection::level_project (int             level,
 #endif
 
     if (level < parent->finestLevel()) {
-      sync_resid_crse.reset(new MultiFab(P_grids,P_dmap,1,1, MFInfo(), factory));
+      sync_resid_crse = std::make_unique<MultiFab>(P_grids,P_dmap,1,1, MFInfo(), factory);
       sync_resid_crse->setVal(0.);
     }
 
     if (level > 0 && iteration == crse_dt_ratio)
     {
       const int ngrow = parent->MaxRefRatio(level-1) - 1;
-      sync_resid_fine.reset(new MultiFab(P_grids,P_dmap,1,ngrow, MFInfo(), factory));
+      sync_resid_fine = std::make_unique<MultiFab>(P_grids,P_dmap,1,ngrow, MFInfo(), factory);
       sync_resid_fine->setVal(0.);
     }
 
@@ -523,10 +498,10 @@ Projection::MLsyncProject (int             c_lev,
     const DistributionMapping& Pdmap_crse = pres_crse.DistributionMap();
     const DistributionMapping& Pdmap_fine = pres_fine.DistributionMap();
 
-    phi[c_lev].reset(new MultiFab(Pgrids_crse,Pdmap_crse,1,1,MFInfo(),LevelData[c_lev]->Factory()));
+    phi[c_lev] = std::make_unique<MultiFab>(Pgrids_crse,Pdmap_crse,1,1,MFInfo(),LevelData[c_lev]->Factory());
     phi[c_lev]->setVal(0);
 
-    phi[c_lev+1].reset(new MultiFab(Pgrids_fine,Pdmap_fine,1,1,MFInfo(),LevelData[c_lev+1]->Factory()));
+    phi[c_lev+1] = std::make_unique<MultiFab>(Pgrids_fine,Pdmap_fine,1,1,MFInfo(),LevelData[c_lev+1]->Factory());
     phi[c_lev+1]->setVal(0);
 
     //
@@ -564,18 +539,18 @@ Projection::MLsyncProject (int             c_lev,
     rhcc[c_lev+1] = &cc_rhs_fine;
     rhnd_vec[c_lev] = &rhnd;
 
-    NavierStokesBase* ns = dynamic_cast<NavierStokesBase*>(LevelData[c_lev]);
+    auto* ns = dynamic_cast<NavierStokesBase*>(LevelData[c_lev]);
     ns->average_down(*vel[c_lev+1],*vel[c_lev],0,AMREX_SPACEDIM);
 
     ns->average_down(*sig[c_lev+1],*sig[c_lev],0,sig[c_lev]->nComp());
 
-    MultiFab* sync_resid_crse = 0;
+    MultiFab* sync_resid_crse = nullptr;
     std::unique_ptr<MultiFab> sync_resid_fine;
 
     if (c_lev > 0 &&  crse_iteration == crse_dt_ratio)
     {
         int ngrow = parent->MaxRefRatio(c_lev-1) - 1;
-        sync_resid_fine.reset(new MultiFab(Pgrids_crse,Pdmap_crse,1,ngrow));
+        sync_resid_fine = std::make_unique<MultiFab>(Pgrids_crse,Pdmap_crse,1,ngrow);
         sync_resid_fine->setVal(0.);
     }
 
@@ -597,7 +572,7 @@ Projection::MLsyncProject (int             c_lev,
         const Geometry& crsr_geom = parent->Geom(c_lev-1);
         BoxArray sync_boxes       = pres_fine.boxArray();
         sync_boxes.coarsen(ratio);
-        crsr_sync_reg->CompAdd(*sync_resid_fine,crse_geom,crsr_geom,sync_boxes,invrat);
+        crsr_sync_reg->CompAdd(*sync_resid_fine,crse_geom,crsr_geom,sync_boxes,invrat); // NOLINT(readability-suspicious-call-argument)
     }
     //
     // Do necessary un-scaling.
@@ -709,7 +684,7 @@ Projection::initialVelocityProject (int  c_lev,
 
             const BoxArray& grids  = LevelData[lev]->boxArray();
             const DistributionMapping& dmap = LevelData[lev]->DistributionMap();
-            sig[lev].reset(new MultiFab(grids,dmap,1,nghost,MFInfo(),LevelData[lev]->Factory()));
+            sig[lev] = std::make_unique<MultiFab>(grids,dmap,1,nghost,MFInfo(),LevelData[lev]->Factory());
 
             if (rho_wgt_vel_proj)
             {
@@ -761,11 +736,12 @@ Projection::initialVelocityProject (int  c_lev,
             if (have_divu)
             {
                 int Divu_Type, Divu;
-                if (!LevelData[lev]->isStateVariable("divu", Divu_Type, Divu))
-                  amrex::Error("Projection::initialVelocityProject(): Divu not found");
+                if (!AmrLevel::isStateVariable("divu", Divu_Type, Divu)) {
+                    amrex::Error("Projection::initialVelocityProject(): Divu not found");
+                }
 
-                NavierStokesBase* ns = dynamic_cast<NavierStokesBase*>(LevelData[lev]);
-                AMREX_ASSERT(!(ns == 0));
+                auto* ns = dynamic_cast<NavierStokesBase*>(LevelData[lev]);
+                AMREX_ASSERT(ns != nullptr);
 
                 rhcc[lev].reset(ns->getDivCond(nghost,cur_divu_time));
             }
@@ -799,7 +775,8 @@ Projection::initialVelocityProject (int  c_lev,
                                   amrex::GetVecOfPtrs(sig),
                                   {},
                                   {},
-                                  proj_tol, proj_abs_tol, increment_gp, 0, 0);
+                                  proj_tol, proj_abs_tol, increment_gp,
+                                  nullptr, nullptr);
         }
         else
         {
@@ -813,7 +790,8 @@ Projection::initialVelocityProject (int  c_lev,
                                   amrex::GetVecOfPtrs(sig),
                                   amrex::GetVecOfPtrs(rhcc),
                                   {},
-                                  proj_tol, proj_abs_tol, increment_gp, 0, 0);
+                                  proj_tol, proj_abs_tol, increment_gp,
+                                  nullptr, nullptr);
         }
 
         //
@@ -887,7 +865,7 @@ Projection::initialPressureProject (int  c_lev)
         const int       nghost = 1;
         const BoxArray& grids  = LevelData[lev]->boxArray();
         const DistributionMapping& dmap = LevelData[lev]->DistributionMap();
-        sig[lev].reset(new MultiFab(grids,dmap,1,nghost,MFInfo(),LevelData[lev]->Factory()));
+        sig[lev] = std::make_unique<MultiFab>(grids,dmap,1,nghost,MFInfo(),LevelData[lev]->Factory());
 
         AmrLevel& amr_level = parent->getLevel(lev);
 
@@ -917,8 +895,7 @@ Projection::initialPressureProject (int  c_lev)
     //
     // Set up outflow bcs.
     //
-    NavierStokesBase* ns = dynamic_cast<NavierStokesBase*>(LevelData[c_lev]);
-    Real gravity = ns->getGravity();
+    Real gravity = NavierStokesBase::getGravity();
 
     if (OutFlowBC::HasOutFlowBC(phys_bc) && do_outflow_bcs)
     {
@@ -933,7 +910,7 @@ Projection::initialPressureProject (int  c_lev)
     for (lev = c_lev; lev <= f_lev; lev++) {
         const BoxArray& grids = vel[lev]->boxArray();
         const DistributionMapping& dmap = vel[lev]->DistributionMap();
-        raii.push_back(std::unique_ptr<MultiFab>(new MultiFab(grids, dmap, AMREX_SPACEDIM, 1,MFInfo(),LevelData[lev]->Factory())));
+        raii.push_back(std::make_unique<MultiFab>(grids, dmap, AMREX_SPACEDIM, 1,MFInfo(),LevelData[lev]->Factory()));
         vel[lev] = raii.back().get();
         vel[lev]->setVal(0.0    , 0            , AMREX_SPACEDIM-1, 1);
         vel[lev]->setVal(gravity, AMREX_SPACEDIM-1, 1            , 1);
@@ -954,7 +931,8 @@ Projection::initialPressureProject (int  c_lev)
     doMLMGNodalProjection(c_lev, f_lev-c_lev+1, vel, phi,
                           amrex::GetVecOfPtrs(sig),
                           rhcc, {},
-                          proj_tol, proj_abs_tol, increment_gp, 0, 0);
+                          proj_tol, proj_abs_tol, increment_gp,
+                          nullptr, nullptr);
 
     //
     // Unscale initial projection variables.
@@ -994,7 +972,7 @@ Projection::initialPressureProject (int  c_lev)
 //
 void
 Projection::initialSyncProject (int       c_lev,
-                                const Vector<MultiFab*> sig,
+                                const Vector<MultiFab*>& sig,
                                 Real      dt,
                                 Real      strt_time,
                                 int       have_divu)
@@ -1043,7 +1021,7 @@ Projection::initialSyncProject (int       c_lev,
             AmrLevel& amr_level = parent->getLevel(lev);
 
             int Divu_Type, Divu;
-            if (!LevelData[c_lev]->isStateVariable("divu", Divu_Type, Divu))
+            if (!AmrLevel::isStateVariable("divu", Divu_Type, Divu))
                 amrex::Error("Projection::initialSyncProject(): Divu not found");
             //
             // Make sure ghost cells are properly filled.
@@ -1064,15 +1042,14 @@ Projection::initialSyncProject (int       c_lev,
 
             // Needed for set_outflow_bcs(). MLMG ignores rh ghost cells.
             const int nghost = 1;
-            rhcc[lev].reset(new MultiFab(amr_level.boxArray(),
-                            amr_level.DistributionMap(),
-                            1,nghost,MFInfo(),amr_level.Factory()));
+            rhcc[lev] = std::make_unique<MultiFab>
+                (amr_level.boxArray(), amr_level.DistributionMap(),
+                 1,nghost,MFInfo(),amr_level.Factory());
             MultiFab* rhcclev = rhcc[lev].get();
             rhcclev->setVal(0);
 
-            NavierStokesBase* ns = dynamic_cast<NavierStokesBase*>(&parent->getLevel(lev));
-
-            AMREX_ASSERT(!(ns == 0));
+            auto* ns = dynamic_cast<NavierStokesBase*>(&parent->getLevel(lev));
+            AMREX_ASSERT(ns != nullptr);
 
             std::unique_ptr<MultiFab> divu (ns->getDivCond(nghost,strt_time));
             std::unique_ptr<MultiFab> dsdt (ns->getDivCond(nghost,strt_time+dt));
@@ -1157,7 +1134,7 @@ Projection::initialSyncProject (int       c_lev,
       MultiFab::Copy(v_crse, *vel[lev-1], 0, 0, AMREX_SPACEDIM, 1);
       MultiFab::Copy(v_fine, *vel[lev  ], 0, 0, AMREX_SPACEDIM, 1);
 
-      NavierStokesBase* ns = dynamic_cast<NavierStokesBase*>(LevelData[lev-1]);
+      auto* ns = dynamic_cast<NavierStokesBase*>(LevelData[lev-1]);
       ns->average_down(v_fine, v_crse, 0, v_crse.nComp());
 
       MultiFab::Copy(*vel[lev-1], v_crse, 0, 0, AMREX_SPACEDIM, 1);
@@ -1176,7 +1153,8 @@ Projection::initialSyncProject (int       c_lev,
     bool increment_gp = true;
     doMLMGNodalProjection(c_lev, f_lev-c_lev+1, vel, phi, sig,
                           amrex::GetVecOfPtrs(rhcc),
-                          {}, proj_tol, proj_abs_tol, increment_gp, 0, 0);
+                          {}, proj_tol, proj_abs_tol, increment_gp,
+                          nullptr, nullptr);
 
     //
     // Unscale initial sync projection variables.
@@ -1220,6 +1198,7 @@ Projection::ConvertUnew (MultiFab&       Unew,
                          Real            alpha,
                          const BoxArray& grids)
 {
+    amrex::ignore_unused(grids);
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
@@ -1238,7 +1217,7 @@ Projection::ConvertUnew (MultiFab&       Unew,
 
 void
 Projection::ConvertUnew( FArrayBox &Unew, FArrayBox &Uold, Real alpha,
-                              const Box &grd )
+                         const Box &grd )
 {
     AMREX_ASSERT(Unew.nComp() >= AMREX_SPACEDIM);
     AMREX_ASSERT(Uold.nComp() >= AMREX_SPACEDIM);
@@ -1263,8 +1242,9 @@ void
 Projection::scaleVar (MultiFab*       sig,
                       int             /*sig_nghosts*/,
                       MultiFab*       vel,
-                      int             level)
+                      int             level) const
 {
+    amrex::ignore_unused(vel);
     AMREX_ASSERT(sig->nComp() == 1);
     AMREX_ASSERT(vel->nComp() >= AMREX_SPACEDIM);
 
@@ -1381,8 +1361,9 @@ void
 Projection::rescaleVar (MultiFab*       sig,
                         int             /*sig_nghosts*/,
                         MultiFab*       vel,
-                        int             level)
+                        int             level) const
 {
+    amrex::ignore_unused(vel);
     AMREX_ASSERT(sig->nComp() == 1);
     AMREX_ASSERT(vel->nComp() >= AMREX_SPACEDIM);
 
@@ -1486,8 +1467,7 @@ Projection::rescaleVar (MultiFab*       sig,
 // Multiply by a radius for r-z coordinates.
 //
 void
-Projection::radMultScal (int       level,
-                         MultiFab& mf)
+Projection::radMultScal (int level, MultiFab& mf) const
 {
     AMREX_ASSERT(parent->Geom(0).IsRZ());
 
@@ -1551,13 +1531,13 @@ Projection::initialVorticityProject (int c_lev)
     {
         MultiFab& P_new  = LevelData[lev]->get_new_data(Press_Type);
         const int nghost = 1;
-        s_real[lev].reset(new MultiFab(LevelData[lev]->boxArray(),
-                                       LevelData[lev]->DistributionMap(),
-                                       1,nghost));
+        s_real[lev] = std::make_unique<MultiFab>(LevelData[lev]->boxArray(),
+                                                 LevelData[lev]->DistributionMap(),
+                                                 1,nghost);
         s_real[lev]->setVal(1,nghost);
-        p_real[lev].reset(new MultiFab(P_new.boxArray(),
-                                       P_new.DistributionMap(),
-                                       1,nghost));
+        p_real[lev] = std::make_unique<MultiFab>(P_new.boxArray(),
+                                                 P_new.DistributionMap(),
+                                                 1,nghost);
         p_real[lev]->setVal(0,nghost);
     }
     //
@@ -1568,18 +1548,19 @@ Projection::initialVorticityProject (int c_lev)
 
     for (int lev = c_lev; lev <= f_lev; lev++)
     {
-        u_real[lev].reset(new MultiFab(parent->getLevel(lev).boxArray(),
-                                       parent->getLevel(lev).DistributionMap(),
-                                       AMREX_SPACEDIM, 1));
+        u_real[lev] = std::make_unique<MultiFab>
+            (parent->getLevel(lev).boxArray(),
+             parent->getLevel(lev).DistributionMap(),
+             AMREX_SPACEDIM, 1);
         u_real[lev]->setVal(0);
         //
         // The vorticity is stored in the new pressure variable for now.
         //
         MultiFab& P_new = LevelData[lev]->get_new_data(Press_Type);
 
-        rhnd[lev].reset(new MultiFab(P_new.boxArray(),
-                                     P_new.DistributionMap(),
-                                     1, 0));
+        rhnd[lev] = std::make_unique<MultiFab>(P_new.boxArray(),
+                                               P_new.DistributionMap(),
+                                               1, 0);
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
@@ -1607,9 +1588,6 @@ Projection::initialVorticityProject (int c_lev)
     //
     // Project.
     //
-    // FIXME -- need to think about what proj2 should really be. Don't
-    // think we actually want to update Gradp here at all. And subsequent
-    // initialVelocityProject will set P=Gp=0 anyway, right?
     bool proj2 = !add_vort_proj;
     doMLMGNodalProjection(c_lev, f_lev-c_lev+1,
                           amrex::GetVecOfPtrs(u_real),
@@ -1673,7 +1651,7 @@ Projection::initialVorticityProject (int c_lev)
     }
 
 #else
-    amrex::ignore_unused(c_lev);
+    amrex::ignore_unused(c_lev,this);
     amrex::Error("Projection::initialVorticityProject(): not implented yet for 3D");
 #endif
 }
@@ -1685,7 +1663,7 @@ Projection::putDown (const Vector<MultiFab*>& phi,
                      int                f_lev,
                      const Orientation* outFaces,
                      int                numOutFlowFaces,
-                     int                ncStripWidth)
+                     int                ncStripWidth) const
 {
     BL_PROFILE("Projection::putDown()");
     //
@@ -1698,6 +1676,7 @@ Projection::putDown (const Vector<MultiFab*>& phi,
     for (int lev = f_lev-1; lev >= c_lev; lev--)
     {
         ratio *= parent->refRatio(lev);
+        auto rr = ratio.dim3();
         const Box& domainC = parent->Geom(lev).Domain();
 
         for (int iface = 0; iface < numOutFlowFaces; iface++)
@@ -1707,8 +1686,8 @@ Projection::putDown (const Vector<MultiFab*>& phi,
             phiC_strip.grow(nGrow);
             BoxArray ba(phiC_strip);
 
-            // FIXME: this size may need adjusting
-            ba.maxSize(32);
+            // This is somewhat arbitrary but convenient
+            ba.maxSize(64);
 
             DistributionMapping dm{ba};
             MultiFab phi_crse_strip(ba, dm, nCompPhi, 0);
@@ -1724,10 +1703,10 @@ Projection::putDown (const Vector<MultiFab*>& phi,
                 if (ovlp.ok())
                 {
                     const auto& phi_c_arr = phi_crse_strip.array(mfi);
-                    ParallelFor(ovlp, [phi_c_arr,phi_f_arr,ratio]
+                    ParallelFor(ovlp, [phi_c_arr,phi_f_arr,rr]
                     AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
-                       phi_c_arr(i,j,k) = phi_f_arr(i*ratio[0],j*ratio[1],k*ratio[2]);
+                       phi_c_arr(i,j,k) = phi_f_arr(i*rr.x,j*rr.y,k*rr.z);
                     });
                 }
             }
@@ -1737,7 +1716,7 @@ Projection::putDown (const Vector<MultiFab*>& phi,
 }
 
 void
-Projection::getStreamFunction (Vector<std::unique_ptr<MultiFab> >& /*phi*/)
+Projection::getStreamFunction (Vector<std::unique_ptr<MultiFab> >& /*phi*/) // NOLINT(readability-convert-member-functions-to-static)
 {
   amrex::Abort("Projection::getStreamFunction not implemented");
 }
@@ -1792,8 +1771,7 @@ Projection::set_outflow_bcs (int        which_call,
     //
     Box state_strip[maxlev][2*AMREX_SPACEDIM];
 
-    int icount[maxlev];
-    for (int i=0; i < maxlev; i++) icount[i] = 0;
+    int icount[maxlev] = {0};
 
     //
     // This loop is only to define the number of outflow faces at each level.
@@ -1826,10 +1804,10 @@ Projection::set_outflow_bcs (int        which_call,
         const Box&      valid_state_strip    = temp_state_strip & domain;
         const BoxArray  uncovered_outflow_ba = amrex::complementIn(valid_state_strip,Lgrids);
 
-        AMREX_ASSERT( !(uncovered_outflow_ba.size() &&
-                     amrex::intersect(Lgrids,valid_state_strip).size()) );
+        AMREX_ASSERT(uncovered_outflow_ba.empty() ||
+                     ! Lgrids.intersects(valid_state_strip));
 
-        if ( !(uncovered_outflow_ba.size()) && fine_level[iface] == -1) {
+        if ( uncovered_outflow_ba.empty() && fine_level[iface] == -1) {
             int ii = icount[lev];
             outFacesAtThisLevel[lev][ii] = outFaces[iface];
             state_strip[lev][ii] = temp_state_strip;
@@ -1843,24 +1821,21 @@ Projection::set_outflow_bcs (int        which_call,
       numOutFlowFaces[lev] = icount[lev];
     }
 
-    NavierStokesBase* ns0 = dynamic_cast<NavierStokesBase*>(LevelData[c_lev]);
-    AMREX_ASSERT(!(ns0 == 0));
-
     int Divu_Type, Divu;
     Real gravity = 0;
 
     if (which_call == INITIAL_SYNC || which_call == INITIAL_VEL)
     {
-      if (!LevelData[c_lev]->isStateVariable("divu", Divu_Type, Divu))
+      if (!AmrLevel::isStateVariable("divu", Divu_Type, Divu))
         amrex::Error("Projection::set_outflow_bcs: No divu.");
     }
 
     if (which_call == INITIAL_PRESS || which_call == LEVEL_PROJ)
     {
-      gravity = ns0->getGravity();
-      if (!LevelData[c_lev]->isStateVariable("divu", Divu_Type, Divu) &&
-          (gravity == 0) )
-        amrex::Error("Projection::set_outflow_bcs: No divu or gravity.");
+      gravity = NavierStokesBase::getGravity();
+      if (!AmrLevel::isStateVariable("divu", Divu_Type, Divu) && (gravity == 0) ) {
+          amrex::Error("Projection::set_outflow_bcs: No divu or gravity.");
+      }
     }
 
     for (int lev = c_lev; lev <= f_lev; lev++)
@@ -1912,10 +1887,11 @@ Projection::set_outflow_bcs_at_level (int          /*which_call*/,
                                                 outFacesAtThisLevel[iface],
                                                 ncStripWidth));
         phi_fine_strip[iface].resize(phi_strip,1);
-        phi_fine_strip[iface].setVal<RunOn::Cpu>(0.);
+        phi_fine_strip[iface].setVal<RunOn::Gpu>(0.);
 
         rho[iface].resize(state_strip[iface],1);
         (*Sig_in).copyTo(rho[iface],0,0,1,ngrow);
+        Gpu::streamSynchronize();
     }
 
     if (std::fabs(gravity) > 0.)
@@ -1923,12 +1899,13 @@ Projection::set_outflow_bcs_at_level (int          /*which_call*/,
                   parent->Geom(lev),
                   outFacesAtThisLevel,numOutFlowFaces,gravity);
 
-    // fixme - there's a cleaner way to do this
     for ( int iface = 0; iface < numOutFlowFaces; iface++)
     {
         BoxArray phi_fine_strip_ba(phi_fine_strip[iface].box());
-        // FIXME: this size may need adjusting
-        phi_fine_strip_ba.maxSize(32);
+
+        // This is somewhat arbitrary but convenient
+        phi_fine_strip_ba.maxSize(64);
+
         DistributionMapping dm {phi_fine_strip_ba};
         MultiFab phi_fine_strip_mf(phi_fine_strip_ba,dm,1,0);
 
@@ -1957,7 +1934,6 @@ Projection::set_outflow_bcs_at_level (int          /*which_call*/,
     }
 }
 
-
 void
 Projection::computeRhoG(FArrayBox*         rhoFab,
                         FArrayBox*         phiFab,
@@ -1966,6 +1942,7 @@ Projection::computeRhoG(FArrayBox*         rhoFab,
                         int                numOutFlowFaces,
                         Real               gravity)
 {
+    amrex::ignore_unused(this);
     AMREX_ASSERT(std::fabs(gravity) > 0.);
 
     for (int iface = 0; iface < numOutFlowFaces; iface++)
@@ -1988,8 +1965,22 @@ Projection::computeRhoG(FArrayBox*         rhoFab,
       {
           const auto   lo = amrex::lbound(phiFab[iface].box());
           const auto   hi = amrex::ubound(phiFab[iface].box());
+#ifdef AMREX_USE_GPU
+          FArrayBox h_phiFab(phiFab[iface].box(), phiFab[iface].nComp(),
+                             The_Pinned_Arena());
+          FArrayBox h_rhoFab(rhoFab[iface].box(), rhoFab[iface].nComp(),
+                             The_Pinned_Arena());
+          Gpu::dtoh_memcpy_async(h_phiFab.dataPtr(), phiFab[iface].dataPtr(),
+                                 h_phiFab.nBytes());
+          Gpu::dtoh_memcpy_async(h_rhoFab.dataPtr(), rhoFab[iface].dataPtr(),
+                                 h_rhoFab.nBytes());
+          Gpu::streamSynchronize();
+          const auto& phi = h_phiFab.array();
+          const auto& rho = h_rhoFab.array();
+#else
           const auto& phi = phiFab[iface].array();
           const auto& rho = rhoFab[iface].array();
+#endif
           const Real dh = geom.CellSize(AMREX_SPACEDIM-1);
 
           auto add_rhog = [gravity, dh] ( Real rho1, Real rho2,
@@ -2032,16 +2023,10 @@ Projection::computeRhoG(FArrayBox*         rhoFab,
           const auto domlo = amrex::lbound(domain);
           const auto domhi = amrex::ubound(domain);
 
-          NavierStokesBase* ns = dynamic_cast<NavierStokesBase*>(LevelData[0]);
-          const auto lo_bc = ns->m_bcrec_scalars[0].lo();
-          const auto hi_bc = ns->m_bcrec_scalars[0].hi();
+          auto* ns = dynamic_cast<NavierStokesBase*>(LevelData[0]);
+          const auto* lo_bc = ns->m_bcrec_scalars[0].lo();
+          const auto* hi_bc = ns->m_bcrec_scalars[0].hi();
 
-          //
-          // fixme? - TODO: Could parallelize here by dividing the loop over i (or j)
-          // only and thus the k integration stays intact. However, would want to move
-          // this declaration of rho_i, rho_ii to ensure each k integration has it's own
-          // copy.
-          //
           Real rho_i, rho_ii;
 
           if ( outDir == int(Direction::x) )
@@ -2385,6 +2370,14 @@ Projection::computeRhoG(FArrayBox*         rhoFab,
               } // endif over hi/low sides
           } // endif over directions
 #endif
+
+#ifdef AMREX_USE_GPU
+          Gpu::htod_memcpy_async(phiFab[iface].dataPtr(), h_phiFab.dataPtr(),
+                                 phiFab[iface].nBytes());
+          Gpu::htod_memcpy_async(rhoFab[iface].dataPtr(), h_rhoFab.dataPtr(),
+                                 rhoFab[iface].nBytes());
+          Gpu::streamSynchronize();
+#endif
       } // endif integrate rho*g*dh
     } // end loop over outflow faces
 }
@@ -2408,6 +2401,7 @@ void Projection::doMLMGNodalProjection (int c_lev, int nlevel,
     BL_PROFILE("Projection:::doMLMGNodalProjection()");
 
     int f_lev = c_lev + nlevel - 1;
+    amrex::ignore_unused(f_lev);
 
     Vector<MultiFab> vel_test(nlevel);
     Vector<MultiFab> phi_test(nlevel);
@@ -2423,12 +2417,12 @@ void Projection::doMLMGNodalProjection (int c_lev, int nlevel,
     AMREX_ASSERT(sig[c_lev]->nComp() == 1);
     AMREX_ASSERT(sig[f_lev]->nComp() == 1);
 
-    if (sync_resid_crse != 0) {
+    if (sync_resid_crse != nullptr) {
         AMREX_ASSERT(nlevel == 1);
         AMREX_ASSERT(c_lev < parent->finestLevel());
     }
 
-    if (sync_resid_fine != 0) {
+    if (sync_resid_fine != nullptr) {
         AMREX_ASSERT((nlevel == 1 || nlevel == 2));
         AMREX_ASSERT(c_lev > 0);
     }
@@ -2534,11 +2528,11 @@ void Projection::doMLMGNodalProjection (int c_lev, int nlevel,
     nodal_projector.getLinOp().setHarmonicAverage(use_harmonic_average);
     nodal_projector.getMLMG().setMaxFmgIter(max_fmg_iter);
 
-    if (sync_resid_fine != 0)
+    if (sync_resid_fine != nullptr)
     {
         nodal_projector.setSyncResidualFine(sync_resid_fine);
     }
-    if (sync_resid_crse != 0)
+    if (sync_resid_crse != nullptr)
     {
         nodal_projector.setSyncResidualCrse(sync_resid_crse, parent->refRatio(c_lev), parent->boxArray(c_lev+1));
     }
@@ -2555,7 +2549,7 @@ void Projection::doMLMGNodalProjection (int c_lev, int nlevel,
 
     for (int lev = 0; lev < nlevel; lev++)
     {
-      NavierStokesBase& ns = *dynamic_cast<NavierStokesBase*>(LevelData[lev+c_lev]);
+      auto& ns = *dynamic_cast<NavierStokesBase*>(LevelData[lev+c_lev]);
       MultiFab& Gp = ns.get_new_data(Gradp_Type);
 
       if ( increment_gp )
@@ -2573,20 +2567,15 @@ void Projection::doMLMGNodalProjection (int c_lev, int nlevel,
         MultiFab::Copy(Gp, *gradphi[lev], 0, 0, AMREX_SPACEDIM, 0);
 
       }
-      //
-      // FIXME - could we get away with only FillPatching in predict_velocity
-      // and initialPressureProject? I think this would depend on the definition
-      // of properly nested... For now, be safe and just fill them.
-      // Fill ghost cells
-      //
       const Real& time = (ns.state)[Gradp_Type].curTime();
       NavierStokesBase::FillPatch(ns, Gp, Gp.nGrow(), time, Gradp_Type, 0, AMREX_SPACEDIM);
     }
 }
 
 // Set velocity in ghost cells to zero except for inflow
-void Projection::set_boundary_velocity(int c_lev, int nlevel, const Vector<MultiFab*>& vel,
-                                       bool inflowCorner)
+void Projection::set_boundary_velocity (int c_lev, int nlevel,
+                                        const Vector<MultiFab*>& vel,
+                                        bool inflowCorner) const
 {
   const int* lo_bc = phys_bc->lo();
   const int* hi_bc = phys_bc->hi();
@@ -2612,7 +2601,6 @@ void Projection::set_boundary_velocity(int c_lev, int nlevel, const Vector<Multi
         vel[lev]->setBndry(0.0, Xvel+idir, 1);
       }
       else {
-        //fixme: is it worth the overhead to have threads here?
 #ifdef _OPENMP
 #pragma omp parallel
 #endif
@@ -2668,11 +2656,11 @@ void Projection::set_boundary_velocity(int c_lev, int nlevel, const Vector<Multi
 
           BoxList bxlist2 = amrex::complementIn(bxg1, bxlist);
 
-          for (BoxList::iterator it=bxlist2.begin(); it != bxlist2.end(); ++it) {
-            Box ovlp = *it & v_fab.box();
-            if (ovlp.ok()) {
-                v_fab.setVal<RunOn::Gpu>(0.0, ovlp, Xvel+idir, 1);
-            }
+          for (auto const& b2 : bxlist2) {
+              Box ovlp = b2 & v_fab.box();
+              if (ovlp.ok()) {
+                  v_fab.setVal<RunOn::Gpu>(0.0, ovlp, Xvel+idir, 1);
+              }
           }
         }
       }
