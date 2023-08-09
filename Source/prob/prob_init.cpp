@@ -174,10 +174,6 @@ void NavierStokes::prob_initData ()
                              S_new.array(mfi, Density), nscal,
                              domain, dx, problo, probhi, IC);
         }
-        else
-        {
-            amrex::Abort("NavierStokes::prob_init: unknown probtype");
-        }
     }
 }
 
