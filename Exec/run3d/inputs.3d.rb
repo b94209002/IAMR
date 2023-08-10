@@ -70,6 +70,7 @@ prob.dDz = 1.
 prob.M0 = 0.
 prob.dMz = -3.
 prob.N2 = 4.
+prob.U0 = 1.0
 prob.qrad = 0.
 prob.omega = 0.
 prob.perturbation_amplitude = 20
