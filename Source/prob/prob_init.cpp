@@ -167,8 +167,8 @@ void NavierStokes::prob_initData ()
           init_RayleighBenard(vbx, P_new.array(mfi), S_new.array(mfi, Xvel),
                               S_new.array(mfi, Density), nscal,
                               domain, dx, problo, probhi, IC);
-	}
-	else
+        }
+        else
         {
             init_TaylorGreen(vbx, P_new.array(mfi), S_new.array(mfi, Xvel),
                              S_new.array(mfi, Density), nscal,
