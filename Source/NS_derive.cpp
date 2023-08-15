@@ -302,6 +302,7 @@ namespace derive_functions
                 Real /*time*/, const int* /*bcrec*/, int /*level*/)
 
   {
+    amrex::ignore_unused(ncomp);
     AMREX_ASSERT(derfab.box().contains(bx));
     AMREX_ASSERT(datfab.box().contains(bx));
 #if ( AMREX_SPACEDIM == 2 )
