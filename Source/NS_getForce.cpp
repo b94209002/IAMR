@@ -224,7 +224,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
      if ( scomp == AMREX_SPACEDIM && ncomp == 1 ) {
      auto const& frc = force.array();
      auto const& vel = Aux.array();
-     amrex::ParallelFor(bx, [frc, vel, rb, dx, H, dom_lo, Pi]
+     amrex::ParallelFor(bx, [frc]
      AMREX_GPU_DEVICE(int i, int j, int k) noexcept
      {
          frc(i,j,k,0) = 0.0_rt;
@@ -309,7 +309,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
      if ( scomp == AMREX_SPACEDIM && ncomp == 1 ) {
      auto const& frc = force.array();
      auto const& vel = Aux.array(auxScomp);
-     amrex::ParallelFor(bx, [frc, vel, rb, dx, H, dom_lo, Pi]
+     amrex::ParallelFor(bx, [frc]
      AMREX_GPU_DEVICE(int i, int j, int k) noexcept
      {
          frc(i,j,k,0) = 0.0_rt;

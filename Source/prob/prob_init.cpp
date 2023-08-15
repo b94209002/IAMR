@@ -736,12 +736,6 @@ void NavierStokes::init_RayleighBenard (Box const& vbx,
 {
   const auto domlo = amrex::lbound(domain);
 
-
-
-
-{
-  const auto domlo = amrex::lbound(domain);
-
   //
   // Velocity already initialized to 0
   //
