@@ -357,7 +357,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
          frc(i,j,k,0) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H) - Ud_xM;
      });
      }
-#endif     
+#endif
 
    }
 

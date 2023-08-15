@@ -34,8 +34,8 @@ namespace derive_functions {
   // Compute kinetic energy
   //
   void derkeng (const amrex::Box& bx, amrex::FArrayBox& derfab, int dcomp, int ncomp,
-		const amrex::FArrayBox& datafab, const amrex::Geometry& geomdata,
-		amrex::Real time, const int* bcrec, int level);
+                const amrex::FArrayBox& datafab, const amrex::Geometry& geomdata,
+                amrex::Real time, const int* bcrec, int level);
 
   //
   // Compute liquid water content
