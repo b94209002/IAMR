@@ -158,7 +158,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
          Real d = aux(i,j,k,1) + rb.D0 + rb.dDz*z + rb.dDy*y;
 	 Real ux = 0.5_rt*(state(i+1,j,k,0) - state(i-1,j,k,0))/dx[0];
 	 Real vx = 0.5_rt*(state(i+1,j,k,0) - state(i-1,j,k,0))/dx[0];
-         Real wx = 0.5_rt*(state(i+1,j,k,0) - state(i-1,j,k,0))/dx[0];		 
+         Real wx = 0.5_rt*(state(i+1,j,k,0) - state(i-1,j,k,0))/dx[0];
          frc(i,j,k,0) = aux(i,j,k,0) * rb.omega * state(i,j,k,1) - rb.U0*(state(i,j,k,2) + z * ux);
          frc(i,j,k,1) = -aux(i,j,k,0) * rb.omega * state(i,j,k,0) - rb.U0 * z * vx;
 	 frc(i,j,k,2) = std::max(m, d - rb.N2*z) - rb.U0 * z * wx;
@@ -279,7 +279,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
          AMREX_GPU_DEVICE(int i, int j, int k) noexcept
          {
              Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
-	     Real Ud_xD = - 0.5_rt * rb.U0 * z * (vel(i+1,j,k,4) - vel(i-1,j,k,4))/dx[0];
+             Real Ud_xD = - 0.5_rt * rb.U0 * z * (vel(i+1,j,k,4) - vel(i-1,j,k,4))/dx[0];
              Real Ud_xM = - 0.5_rt * rb.U0 * z * (vel(i+1,j,k,5) - vel(i-1,j,k,5))/dx[0];
              frc(i,j,k,3) = 0.0_rt;
              frc(i,j,k,4) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H) - Ud_xD;
@@ -298,7 +298,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
          Real Ud_xM = - 0.5_rt * rb.U0 * z * (vel(i+1,j,k,5) - vel(i-1,j,k,5))/dx[0];
          frc(i,j,k,0) = 0.0_rt;
          frc(i,j,k,1) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H) - Ud_xD;
-         frc(i,j,k,2) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H) - Ud_xM; 
+         frc(i,j,k,2) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H) - Ud_xM;
 /*         Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
          frc(i,j,k,0) = 0.0_rt;
          frc(i,j,k,1) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H);
@@ -343,7 +343,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
          Real Ud_xM = - 0.5_rt * rb.U0 * z * (vel(i+1,j,k,5) - vel(i-1,j,k,5))/dx[0];
          frc(i,j,k,0) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H) - Ud_xD;
          frc(i,j,k,1) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H) - Ud_xM;
-	 });
+     });
      }
      // We are filling trac2
      if ( scomp == AMREX_SPACEDIM+2 && ncomp == 1 ) {
