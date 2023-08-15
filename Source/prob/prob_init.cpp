@@ -724,8 +724,8 @@ void NavierStokes::init_ConvectedVortex (Box const& vbx,
 }
 
 void NavierStokes::init_RayleighBenard (Box const& vbx,
-                                        Array4<Real> const& press,
-                                        Array4<Real> const& vel,
+                                        Array4<Real> const& /*press*/,
+                                        Array4<Real> const& /*vel*/,
                                         Array4<Real> const& scal,
                                         const int nscal,
                                         Box const& domain,
@@ -733,6 +733,12 @@ void NavierStokes::init_RayleighBenard (Box const& vbx,
                                         GpuArray<Real, AMREX_SPACEDIM> const& problo,
                                         GpuArray<Real, AMREX_SPACEDIM> const& probhi,
                                         InitialConditions IC)
+{
+  const auto domlo = amrex::lbound(domain);
+
+
+
+
 {
   const auto domlo = amrex::lbound(domain);
 
