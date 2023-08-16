@@ -37,7 +37,6 @@ namespace
     int max_coarsening_level(-1);
     bool semicoarsening = 0;
     int max_semicoarsening_level = 0;
-    bool bottom_verbose = false;
 
     constexpr Real BogusValue = 1.e200;
     constexpr Real SmallValue = 1.e-200;
