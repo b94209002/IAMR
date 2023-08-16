@@ -189,7 +189,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
    }
 
    if (ncomp_scal > 0) {
-       force.setVal<RunOn::Gpu>(0.0, bx, scomp_scal, ncomp_scal);
+      force.setVal<RunOn::Gpu>(0.0, bx, scomp_scal, ncomp_scal);
    }
    /*
    if ( scomp >= AMREX_SPACEDIM || scomp+ncomp >= AMREX_SPACEDIM) {
@@ -375,7 +375,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
          Real Ud_xM = - 0.5_rt * rb.U0 * z * (vel(i+1,j,k,5) - vel(i-1,j,k,5))/dx[0];
          frc(i,j,k,0) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H) - Ud_xM;
      });
-     } 
+     }
 #endif
 
    }*/
