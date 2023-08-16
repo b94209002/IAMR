@@ -35,7 +35,7 @@ namespace
     bool use_harmonic_average = false;
     int max_fmg_iter = 0;
     int max_coarsening_level(-1);
-    bool semicoarsening = 0;
+    int semicoarsening = 0;
     int max_semicoarsening_level = 0;
 
     constexpr Real BogusValue = 1.e200;

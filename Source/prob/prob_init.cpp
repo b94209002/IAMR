@@ -755,7 +755,7 @@ void NavierStokes::init_RayleighBenard (Box const& vbx,
     scal(i,j,k,0) = 1.0;
     scal(i,j,k,1) = pert*exp(-y/dx[1]);
     if (nscal >= 2 )
-    { 
+    {
       scal(i,j,k,2) = pert*exp(-y/dx[1]);
     }
 
@@ -763,10 +763,6 @@ void NavierStokes::init_RayleighBenard (Box const& vbx,
 
 #elif (AMREX_SPACEDIM == 3)
 
-  const Real Ly    = (probhi[1] - problo[1]);
-  const Real splitz = 0.5*(problo[2] + probhi[2]);
-
-  Real rn;
   // Create random amplitudes and phases for the perturbation
 
   // This doens't work for OMP. Just hard-code results below.
@@ -780,14 +776,8 @@ void NavierStokes::init_RayleighBenard (Box const& vbx,
   // rn = amrex::Random();
   // const Real ranphse2 = 2.*Pi*rn;
 
-  const Real ranampl = 2.*(0.6544437533747718 - 0.5);
-  const Real ranphse1 = 2.*Pi*0.1556190326530211;
-  const Real ranphse2 = 2.*Pi*0.4196144025537369;
-
   amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
   {
-    Real x = problo[0] + (i - domlo.x + 0.5)*dx[0];
-    Real y = problo[1] + (j - domlo.y + 0.5)*dx[1];
     Real z = problo[2] + (k - domlo.z + 0.5)*dx[2];
 
     scal(i,j,k,0) = 1.0;
