@@ -743,7 +743,6 @@ void NavierStokes::init_RayleighBenard (Box const& vbx,
   //
   // Scalars, ordered as Density, Tracer(s), Temp (if using)
   //
-  const Real Lx    = (probhi[0] - problo[0]);
 
 #if (AMREX_SPACEDIM == 2)
 
@@ -755,7 +754,10 @@ void NavierStokes::init_RayleighBenard (Box const& vbx,
 
     scal(i,j,k,0) = 1.0;
     scal(i,j,k,1) = pert*exp(-y/dx[1]);
-    scal(i,j,k,2) = pert*exp(-y/dx[1]);
+    if (nscal >= 2 )
+    { 
+      scal(i,j,k,2) = pert*exp(-y/dx[1]);
+    }
 
   });
 
