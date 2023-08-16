@@ -731,7 +731,7 @@ void NavierStokes::init_RayleighBenard (Box const& vbx,
                                         Box const& domain,
                                         GpuArray<Real, AMREX_SPACEDIM> const& dx,
                                         GpuArray<Real, AMREX_SPACEDIM> const& problo,
-                                        GpuArray<Real, AMREX_SPACEDIM> const& probhi,
+                                        GpuArray<Real, AMREX_SPACEDIM> const& /*probhi*/,
                                         InitialConditions IC)
 {
   const auto domlo = amrex::lbound(domain);
