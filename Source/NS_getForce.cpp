@@ -319,7 +319,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
          frc(i,j,k,0) = 0.0_rt;
          frc(i,j,k,1) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H) - Ud_xD;
          frc(i,j,k,2) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H) - Ud_xM;
-/*         Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
+         Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
          frc(i,j,k,0) = 0.0_rt;
          frc(i,j,k,1) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H);
          frc(i,j,k,2) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H);
@@ -354,7 +354,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
      amrex::ParallelFor(bx, [frc, vel, rb, dx, H, dom_lo, Pi]
      AMREX_GPU_DEVICE(int i, int j, int k) noexcept
      {
-/*         Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
+         Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
          frc(i,j,k,0) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H);
          frc(i,j,k,1) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H);
          Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
