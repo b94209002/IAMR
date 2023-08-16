@@ -223,7 +223,6 @@ NavierStokesBase::getForce (FArrayBox&       force,
      // We are filling only density
      if ( scomp == AMREX_SPACEDIM && ncomp == 1 ) {
      auto const& frc = force.array();
-     auto const& vel = Aux.array(auxScomp);
      amrex::ParallelFor(bx, [frc]
      AMREX_GPU_DEVICE(int i, int j, int k) noexcept
      {
