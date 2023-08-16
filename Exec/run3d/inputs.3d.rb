@@ -88,15 +88,15 @@ diffuse.max_semicoarsening_level = 2
 
 nodal_proj.verbose = 0
 nodal_proj.max_coarsening_level = 5
-nodal_proj.semicoarsening = 1
+nodal_proj.semicoarsening = 0
 nodal_proj.max_semicoarsening_level = 1
 nodal_proj.proj_tol = 1.e-12
 #nodal_proj.verbose = 5
 #nodal_proj.bottom_verbose = 2
-nodal_proj.bottom_solver = hypre
+#nodal_proj.bottom_solver = hypre
 #nodal_proj.mg_max_coarsening_level=0
 #nodal_proj.bottom_rtol       = 1.e-12
 #nodal_proj.bottom_maxiter = 100
-hypre.hypre_solver = BiCGSTAB
-hypre.hypre_preconditioner = BoomerAMG
+#hypre.hypre_solver = BiCGSTAB
+#hypre.hypre_preconditioner = BoomerAMG
 
