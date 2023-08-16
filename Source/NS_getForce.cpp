@@ -193,7 +193,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
    }
    /*
    if ( scomp >= AMREX_SPACEDIM || scomp+ncomp >= AMREX_SPACEDIM) {
-     //force.setVal<RunOn::Gpu>(0.0, bx, scomp, ncomp); 
+     //force.setVal<RunOn::Gpu>(0.0, bx, scomp, ncomp);
      // Doing only scalars
      // force.setVal<RunOn::Gpu>(0.0, bx, 0, ncomp);
      // auto const& frc  = force.array();
@@ -379,7 +379,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
 #endif
 
    }*/
-   
+
    if (ParallelDescriptor::IOProcessor() && getForceVerbose) {
        // Compute min/max
        for (int n=0; n<ncomp; n++) {
