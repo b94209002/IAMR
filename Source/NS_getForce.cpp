@@ -137,6 +137,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
        });
      }
      else {
+       /*
        const Real* dom_lo = geom.ProbLo();
        const Real* dx = geom.CellSize();
        NavierStokes::RayleighBenard rb = NavierStokes::getRayleighBenard();
@@ -164,15 +165,35 @@ NavierStokesBase::getForce (FArrayBox&       force,
 #endif
          // define dD = (DH-D0)/H and dM = (MH-M0)/H
          // with this from, DBC = 0 in the buoyancy equation
-       });
-       // force.setVal<RunOn::Gpu>(0.0, bx, Xvel, AMREX_SPACEDIM);
+       }); */
+       force.setVal<RunOn::Gpu>(0.0, bx, Xvel, AMREX_SPACEDIM);
      }
    }
 
    //
    // Scalar forcing
    //
+   int scomp_scal = -1;
+   int ncomp_scal = -1;
+   if ( scomp >= AMREX_SPACEDIM ) {
+       // Doing only scalars
+       scomp_scal = 0;
+       ncomp_scal = ncomp;
+   }
+   // Recall that we will only get here if previous block is false,
+   // i.e. if scomp < AMREX_SPACEDIM
+   else if ( scomp+ncomp > AMREX_SPACEDIM) {
+       // Doing scalars with vel
+       scomp_scal = Density;
+       ncomp_scal = ncomp-Density;
+   }
+
+   if (ncomp_scal > 0) {
+       force.setVal<RunOn::Gpu>(0.0, bx, scomp_scal, ncomp_scal);
+   }
+   /*
    if ( scomp >= AMREX_SPACEDIM || scomp+ncomp >= AMREX_SPACEDIM) {
+     //force.setVal<RunOn::Gpu>(0.0, bx, scomp, ncomp); 
      // Doing only scalars
      // force.setVal<RunOn::Gpu>(0.0, bx, 0, ncomp);
      // auto const& frc  = force.array();
@@ -181,6 +202,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
      // {
      //       frc(i,j,k,n) = 0.0_rt;
      //});
+
      NavierStokes::RayleighBenard rb = NavierStokes::getRayleighBenard();
      const Real* dom_lo = geom.ProbLo();
      const Real* dom_hi = geom.ProbHi();
@@ -301,7 +323,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
          frc(i,j,k,0) = 0.0_rt;
          frc(i,j,k,1) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H);
          frc(i,j,k,2) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H);
-*/   });
+   });
      }
 
      // We are filling only density
@@ -334,7 +356,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
      {
 /*         Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
          frc(i,j,k,0) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H);
-         frc(i,j,k,1) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H);*/
+         frc(i,j,k,1) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H);
          Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
          Real Ud_xD = - 0.5_rt * rb.U0 * z * (vel(i+1,j,k,4) - vel(i-1,j,k,4))/dx[0];
          Real Ud_xM = - 0.5_rt * rb.U0 * z * (vel(i+1,j,k,5) - vel(i-1,j,k,5))/dx[0];
@@ -353,11 +375,11 @@ NavierStokesBase::getForce (FArrayBox&       force,
          Real Ud_xM = - 0.5_rt * rb.U0 * z * (vel(i+1,j,k,5) - vel(i-1,j,k,5))/dx[0];
          frc(i,j,k,0) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H) - Ud_xM;
      });
-     }
+     } 
 #endif
 
-   }
-
+   }*/
+   
    if (ParallelDescriptor::IOProcessor() && getForceVerbose) {
        // Compute min/max
        for (int n=0; n<ncomp; n++) {
