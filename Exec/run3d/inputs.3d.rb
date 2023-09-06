@@ -12,13 +12,13 @@ ns.do_cons_trac2 = 1
 #godunov.use_ppm = 1
 godunov.use_force_in_trans = 1
 
-#ns.getForceVerbose = 2
+ns.getForceVerbose = 0
 
 max_step 		= 4000
 
 amr.n_cell              = 384 384 32
 
-amr.max_level           = 0
+amr.max_level           = 2
 
 # Refinement criterion, use vorticity
 amr.refinement_indicators = liquid_water

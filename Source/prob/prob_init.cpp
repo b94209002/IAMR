@@ -781,11 +781,11 @@ void NavierStokes::init_RayleighBenard (Box const& vbx,
     Real z = problo[2] + (k - domlo.z + 0.5)*dx[2];
 
     scal(i,j,k,0) = 1.0;
-    Real pert = IC.pertamp; // * amrex::Random();
+    Real pert = IC.pertamp * amrex::Random();
     scal(i,j,k,1) = pert*exp(-z/dx[2]);
     if (nscal >= 2 )
     {
-      pert = IC.pertamp;// * amrex::Random();
+      pert = IC.pertamp * amrex::Random();
       scal(i,j,k,2) = pert*exp(-z/dx[2]);
     }
   });
