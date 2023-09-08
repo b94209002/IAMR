@@ -18,7 +18,7 @@ max_step 		= 4000
 
 amr.n_cell              = 384 384 32
 
-amr.max_level           = 2
+amr.max_level           = 0
 
 # Refinement criterion, use vorticity
 amr.refinement_indicators = liquid_water

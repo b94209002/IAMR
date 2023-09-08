@@ -2789,7 +2789,7 @@ NavierStokesBase::scalar_advection_update (Real dt,
 
         ++sComp;
     }
-
+    // S_old.FillBoundary(geom.periodicity());
     //
     // Advective update of other scalars
     //
@@ -2852,8 +2852,7 @@ NavierStokesBase::scalar_advection_update (Real dt,
                     // a safe choice.
                     for ( n = 1; n < numscal; n++ )
                     {
-                        Sarr(i,j,k,n) = Sn(i,j,k,n);
-                        // Sarr(i,j,k,n) = Sn(i+1,j,k,n) - Sn(i-1,j,k,n);
+                        Sarr(i,j,k,n) = Sn(i+1,j,k,n) - Sn(i-1,j,k,n);
                     }
                 });
 

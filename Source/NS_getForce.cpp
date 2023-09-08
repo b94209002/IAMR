@@ -365,7 +365,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
              // frc(i,j,k,1) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H);
              Real Ud_xD = - 0.5_rt * rb.U0 * z * aux(i,j,k,1)/dx[0]; // (aux(i+1,j,k,1) - aux(i-1,j,k,1))/dx[0];
              Real Ud_xM = - 0.5_rt * rb.U0 * z * aux(i,j,k,2)/dx[0]; // (aux(i+1,j,k,2) - aux(i-1,j,k,2))/dx[0];
-             frc(i,j,k,0) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H) - Ud_xD;
+             frc(i,j,k,0) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H)  - Ud_xD;
              frc(i,j,k,1) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H) - Ud_xM;
              //amrex::Print() << " aux(i,j,k,1) = " <<  aux(i,j,k,1) << ", aux(i,j,k,2) = " <<  aux(i,j,k,2) << std::endl;
          });
