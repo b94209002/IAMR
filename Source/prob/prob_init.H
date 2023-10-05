@@ -167,6 +167,7 @@ struct RayleighBenard
   amrex::Real U0 = 0.0;
   amrex::Real qrad = 0.0;
   amrex::Real omega = 0.0;
+  amrex::Real prep = 0.0;
 };
 static RayleighBenard rb;
 static RayleighBenard getRayleighBenard () { return rb; }

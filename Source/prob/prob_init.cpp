@@ -85,7 +85,7 @@ void NavierStokes::prob_initData ()
     pp.query("U0", rb.U0);
     pp.query("qrad",rb.qrad);
     pp.query("omega", rb.omega);
-
+    pp.query("prep",rb.prep);
     //
     // Fill state and, optionally, pressure
     //
@@ -190,6 +190,7 @@ void NavierStokes::prob_initData_restart ()
     pp.query("U0", rb.U0);
     pp.query("qrad",rb.qrad);
     pp.query("omega", rb.omega);
+    pp.query("prep",rb.prep);
 }
 
 void NavierStokes::init_bubble (Box const& vbx,

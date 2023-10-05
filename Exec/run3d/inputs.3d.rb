@@ -31,9 +31,9 @@ amr.v                   = 1
 
 #amr.checkpoint_files_output = 0
 #amr.restart             = chk02200
-amr.check_int		= 200
+amr.check_int		= 500
 
-amr.plot_int		= 10
+amr.plot_int		= 20
 
 ns.cfl                  = 0.7  # CFL number used to set dt
 
@@ -71,8 +71,9 @@ prob.M0 = 0.
 prob.dMz = -3.
 prob.N2 = 4.
 prob.U0 = 0.0
-prob.qrad = 0.
+prob.qrad = 0.005
 prob.omega = 0.
+prob.prep = 0.
 prob.perturbation_amplitude = 20
 
 amr.blocking_factor     = 8
