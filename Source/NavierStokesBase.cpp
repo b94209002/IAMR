@@ -2789,7 +2789,6 @@ NavierStokesBase::scalar_advection_update (Real dt,
 
         ++sComp;
     }
-    // S_old.FillBoundary(geom.periodicity());
     //
     // Advective update of other scalars
     //

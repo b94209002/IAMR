@@ -14,17 +14,19 @@ godunov.use_force_in_trans = 1
 
 ns.getForceVerbose = 0
 
-max_step 		= 4000
+max_step 		= 10
 
-amr.n_cell              = 384 384 32
+amr.n_cell              = 768 768 32
 
-amr.max_level           = 0
+amr.max_level           = 1
+
+amr.regrid_file         = exp.txt
 
 # Refinement criterion, use vorticity
 amr.refinement_indicators = liquid_water
 amr.liquid_water.liquid_water_greater =  0.0001
 
-amr.regrid_int		= 2
+amr.regrid_int		= -1
 
 ns.v                    = 1
 amr.v                   = 1
@@ -46,7 +48,7 @@ ns.scal_diff_coefs      = 0.0014 0.0014
 geometry.coord_sys   =  0
 
 geometry.prob_lo     =  0. 0. 0.
-geometry.prob_hi     =  12. 12. 1.
+geometry.prob_hi     =  24. 24. 1.
 
 geometry.is_periodic =  1 1 0
 

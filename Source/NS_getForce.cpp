@@ -157,12 +157,12 @@ NavierStokesBase::getForce (FArrayBox&       force,
          Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
          Real m = aux(i,j,k,2) + rb.M0 + rb.dMz*z + rb.dMy*y;
          Real d = aux(i,j,k,1) + rb.D0 + rb.dDz*z + rb.dDy*y;
-         Real ux = 0.5_rt*(vel(i+1,j,k,0) - vel(i-1,j,k,0))/dx[0];
-         Real vx = 0.5_rt*(vel(i+1,j,k,0) - vel(i-1,j,k,0))/dx[0];
-         Real wx = 0.5_rt*(vel(i+1,j,k,0) - vel(i-1,j,k,0))/dx[0];
-         frc(i,j,k,0) = aux(i,j,k,0) * rb.omega * vel(i,j,k,1) - rb.U0*(vel(i,j,k,2) + z * ux);
-         frc(i,j,k,1) = -aux(i,j,k,0) * rb.omega * vel(i,j,k,0) - rb.U0 * z * vx;
-         frc(i,j,k,2) = std::max(m, d - rb.N2*z) - rb.U0 * z * wx;
+         // Real ux = 0.5_rt*(vel(i+1,j,k,0) - vel(i-1,j,k,0))/dx[0];
+         // Real vx = 0.5_rt*(vel(i+1,j,k,0) - vel(i-1,j,k,0))/dx[0];
+         // Real wx = 0.5_rt*(vel(i+1,j,k,0) - vel(i-1,j,k,0))/dx[0];
+         frc(i,j,k,0) = aux(i,j,k,0) * rb.omega * vel(i,j,k,1);
+         frc(i,j,k,1) = -aux(i,j,k,0) * rb.omega * vel(i,j,k,0);
+         frc(i,j,k,2) = std::max(m, d - rb.N2*z);
 #endif
          // define dD = (DH-D0)/H and dM = (MH-M0)/H
          // with this from, DBC = 0 in the buoyancy equation
@@ -302,14 +302,14 @@ NavierStokesBase::getForce (FArrayBox&       force,
 	     // frc(i,j,k,3) = 0.0_rt;
              // frc(i,j,k,4) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H);
              // frc(i,j,k,5) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H);
-             Real Ud_xD = - 0.5_rt * rb.U0 * z * (aux(i+1,j,k,1) - aux(i-1,j,k,1))/dx[0];
-             Real Ud_xM = - 0.5_rt * rb.U0 * z * (aux(i+1,j,k,2) - aux(i-1,j,k,2))/dx[0];
+             // Real Ud_xD = - 0.5_rt * rb.U0 * z * (aux(i+1,j,k,1) - aux(i-1,j,k,1))/dx[0];
+             // Real Ud_xM = - 0.5_rt * rb.U0 * z * (aux(i+1,j,k,2) - aux(i-1,j,k,2))/dx[0];
              Real m = rb.D0 + rb.dDz * z + aux(i,j,k,1);
 	     Real d = rb.M0 + rb.dMz * z + aux(i,j,k,2);
              Real ql = rb.prep * std::max(0., m - d + rb.N2*z);
              frc(i,j,k,3) = 0.0_rt;
-             frc(i,j,k,4) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H) - Ud_xD + ql;
-             frc(i,j,k,5) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H) - Ud_xM;
+             frc(i,j,k,4) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H) + ql;
+             frc(i,j,k,5) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H);
          });
      }
      // We are filling scalers at once
@@ -324,14 +324,14 @@ NavierStokesBase::getForce (FArrayBox&       force,
              // frc(i,j,k,0) = 0.0_rt;
              // frc(i,j,k,1) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H);
              // frc(i,j,k,2) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H);
-             Real Ud_xD = - 0.5_rt * rb.U0 * z * (aux(i+1,j,k,1) - aux(i-1,j,k,1))/dx[0];
-             Real Ud_xM = - 0.5_rt * rb.U0 * z * (aux(i+1,j,k,2) - aux(i-1,j,k,2))/dx[0];
+             // Real Ud_xD = - 0.5_rt * rb.U0 * z * (aux(i+1,j,k,1) - aux(i-1,j,k,1))/dx[0];
+             // Real Ud_xM = - 0.5_rt * rb.U0 * z * (aux(i+1,j,k,2) - aux(i-1,j,k,2))/dx[0];
              Real m = rb.D0 + rb.dDz * z + aux(i,j,k,1);
              Real d = rb.M0 + rb.dMz * z + aux(i,j,k,2);
              Real ql = rb.prep * std::max(0., m - d + rb.N2*z);
              frc(i,j,k,0) = 0.0_rt;
-             frc(i,j,k,1) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H) - Ud_xD + ql;
-             frc(i,j,k,2) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H) - Ud_xM;
+             frc(i,j,k,1) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H) + ql;
+             frc(i,j,k,2) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H);
          });
      }
 
@@ -354,11 +354,11 @@ NavierStokesBase::getForce (FArrayBox&       force,
          {
              Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
              // frc(i,j,k,0) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H);
-             Real Ud_xD = - 0.5_rt * rb.U0 * z * (aux(i+1,j,k,1) - aux(i-1,j,k,1))/dx[0];
+             //Real Ud_xD = - 0.5_rt * rb.U0 * z * (aux(i+1,j,k,1) - aux(i-1,j,k,1))/dx[0];
 	     Real m = rb.D0 + rb.dDz * z + aux(i,j,k,1);
              Real d = rb.M0 + rb.dMz * z + aux(i,j,k,2);
              Real ql = rb.prep * std::max(0., m - d + rb.N2*z);
-             frc(i,j,k,0) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H) - Ud_xD + ql;
+             frc(i,j,k,0) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H) + ql;
          });
      }
      // We are filling trac and trac2
@@ -379,7 +379,6 @@ NavierStokesBase::getForce (FArrayBox&       force,
              Real ql = rb.prep * std::max(0., m - d + rb.N2*z);
              frc(i,j,k,0) = -vel(i,j,k,1)*rb.dDy - vel(i,j,k,2)*rb.dDz - rb.qrad * sin(Pi*z/H) + ql;
              frc(i,j,k,1) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H);
-             //amrex::Print() << " aux(i,j,k,1) = " <<  aux(i,j,k,1) << ", aux(i,j,k,2) = " <<  aux(i,j,k,2) << std::endl;
          });
      }
      // We are filling trac2
@@ -392,11 +391,11 @@ NavierStokesBase::getForce (FArrayBox&       force,
          {
              Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
              // frc(i,j,k,0) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H);
-	     Real Ud_xM = - 0.5_rt * rb.U0 * z * (aux(i+1,j,k,2) - aux(i-1,j,k,2))/dx[0];
+	     // Real Ud_xM = - 0.5_rt * rb.U0 * z * (aux(i+1,j,k,2) - aux(i-1,j,k,2))/dx[0];
              Real m = rb.D0 + rb.dDz * z + aux(i,j,k,1);
              Real d = rb.M0 + rb.dMz * z + aux(i,j,k,2);
              Real ql = rb.prep * std::max(0., m - d + rb.N2*z);
-             frc(i,j,k,0) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H) - Ud_xM;
+             frc(i,j,k,0) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H); // - Ud_xM;
          });
      }
 #endif
