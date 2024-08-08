@@ -159,7 +159,7 @@ Projection::install_level (int                     level,
 //         becomes (u^{n+1} - u^n)/dt in the solver,
 //         and is converted back to u^n+1 at the end
 //  P_old  contains p^{n-1/2}
-//  P_new  gets cleared, initialized to an intial guess for p^{n+1/2}
+//  P_new  gets cleared, initialized to an initial guess for p^{n+1/2}
 //         using coarse grid data if available,
 //         becomes pressure update phi in the solver,
 //         and then converted into final prssure p^{n+1/2}
@@ -1188,7 +1188,7 @@ Projection::initialSyncProject (int       c_lev,
 }
 
 //
-// Convert U to an Accleration like quantity: Unew = (Unew - Uold)/alpha
+// Convert U to an Acceleration like quantity: Unew = (Unew - Uold)/alpha
 //
 
 void
@@ -1211,7 +1211,7 @@ Projection::ConvertUnew (MultiFab&       Unew,
 }
 
 //
-// Convert U to an Accleration like quantity: Unew = (Unew - Uold)/alpha
+// Convert U to an Acceleration like quantity: Unew = (Unew - Uold)/alpha
 //
 
 void
@@ -1338,7 +1338,7 @@ Projection::scaleVar (MultiFab*       sig,
             if ( i >= domlox && i <= domhix &&
                  j >= domloy && j <= domhiy)
             {
-              // The conern here is EB covered cells set to zero
+              // The concern here is EB covered cells set to zero
               sigarr(i,j,k) = ( amrex::Math::abs(sigarr(i,j,k)) > SmallValue )
                 ? Real(1.0)/sigarr(i,j,k)
                 : sigarr(i,j,k) = 0.;
@@ -1447,7 +1447,7 @@ Projection::rescaleVar (MultiFab*       sig,
             if ( i >= domlox && i <= domhix &&
                  j >= domloy && j <= domhiy)
             {
-              // The conern here is EB covered cells set to zero
+              // The concern here is EB covered cells set to zero
               sigarr(i,j,k) = ( amrex::Math::abs(sigarr(i,j,k)) > SmallValue )
                 ? Real(1.0)/sigarr(i,j,k)
                 : sigarr(i,j,k) = 0.;
@@ -1577,11 +1577,11 @@ Projection::initialVorticityProject (int c_lev)
     //
     BCRec phys_bc_save(phys_bc->lo(),phys_bc->hi());
     for (int i=0; i<AMREX_SPACEDIM; ++i) {
-      phys_bc->setLo(i,Outflow);
-      phys_bc->setHi(i,Outflow);
+      phys_bc->setLo(i,PhysBCType::outflow);
+      phys_bc->setHi(i,PhysBCType::outflow);
       if (geom.isPeriodic(i)) {
-        phys_bc->setLo(i,Interior);
-        phys_bc->setHi(i,Interior);
+        phys_bc->setLo(i,PhysBCType::interior);
+        phys_bc->setHi(i,PhysBCType::interior);
       }
     }
     //
@@ -1651,7 +1651,7 @@ Projection::initialVorticityProject (int c_lev)
 
 #else
     amrex::ignore_unused(c_lev,this);
-    amrex::Error("Projection::initialVorticityProject(): not implented yet for 3D");
+    amrex::Error("Projection::initialVorticityProject(): not implemented yet for 3D");
 #endif
 }
 
@@ -1765,7 +1765,7 @@ Projection::set_outflow_bcs (int        which_call,
 
     //
     // Determine the finest level such that the entire outflow face is covered
-    // by boxes at this level (skip if doesnt touch, and bomb if only partially
+    // by boxes at this level (skip if doesn't touch, and bomb if only partially
     // covered).
     //
     Box state_strip[maxlev][2*AMREX_SPACEDIM];
@@ -2448,17 +2448,17 @@ void Projection::doMLMGNodalProjection (int c_lev, int nlevel,
         }
         else
         {
-            if (phys_bc->lo(idim) == Outflow) {
+            if (phys_bc->lo(idim) == PhysBCType::outflow) {
                 mlmg_lobc[idim] = LinOpBCType::Dirichlet;
-            } else if (phys_bc->lo(idim) == Inflow) {
+            } else if (phys_bc->lo(idim) == PhysBCType::inflow) {
                 mlmg_lobc[idim] = LinOpBCType::inflow;
             } else {
                 mlmg_lobc[idim] = LinOpBCType::Neumann;
             }
 
-            if (phys_bc->hi(idim) == Outflow) {
+            if (phys_bc->hi(idim) == PhysBCType::outflow) {
                 mlmg_hibc[idim] = LinOpBCType::Dirichlet;
-            } else if (phys_bc->hi(idim) == Inflow) {
+            } else if (phys_bc->hi(idim) == PhysBCType::inflow) {
                 mlmg_hibc[idim] = LinOpBCType::inflow;
             } else {
                 mlmg_hibc[idim] = LinOpBCType::Neumann;
@@ -2596,7 +2596,7 @@ void Projection::set_boundary_velocity (int c_lev, int nlevel,
 
     for (int idir=0; idir<AMREX_SPACEDIM; idir++) {
 
-      if (lo_bc[idir] != Inflow && hi_bc[idir] != Inflow) {
+      if (lo_bc[idir] != PhysBCType::inflow && hi_bc[idir] != PhysBCType::inflow) {
         vel[lev]->setBndry(0.0, Xvel+idir, 1);
       }
       else {
@@ -2617,7 +2617,7 @@ void Projection::set_boundary_velocity (int c_lev, int nlevel,
           // const Box& tile = mfi.tilebox();
           // BoxList bxlist(tile);
 
-          if (lo_bc[idir] == Inflow && reg.smallEnd(idir) == domainBox.smallEnd(idir)) {
+          if (lo_bc[idir] == PhysBCType::inflow && reg.smallEnd(idir) == domainBox.smallEnd(idir)) {
             Box bx;                // bx is the region we *protect* from zero'ing
             bx = amrex::adjCellLo(reg, idir);
 
@@ -2634,7 +2634,7 @@ void Projection::set_boundary_velocity (int c_lev, int nlevel,
             bxlist.push_back(bx);
           }
 
-          if (hi_bc[idir] == Inflow && reg.bigEnd(idir) == domainBox.bigEnd(idir)) {
+          if (hi_bc[idir] == PhysBCType::inflow && reg.bigEnd(idir) == domainBox.bigEnd(idir)) {
             Box bx;                // bx is the region we *protect* from zero'ing
             bx = amrex::adjCellHi(reg, idir);
 

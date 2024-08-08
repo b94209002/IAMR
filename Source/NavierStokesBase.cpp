@@ -61,7 +61,7 @@ struct HomExtDirFill
 //
 // A dummy function because FillPatch requires something to exist for filling dirichlet boundary conditions,
 // even if we know we cannot have an ext_dir BC.
-// u_mac BCs are only either periodic (INT_DIR) or first order extrapolation (FOEXTRAP).
+// u_mac BCs are only either periodic (BCType::int_dir) or first order extrapolation (FOEXTRAP).
 //
 struct umacFill
 {
@@ -246,7 +246,7 @@ NavierStokesBase::NavierStokesBase (Amr&            papa,
     if ( level_geom.IsRZ() )
     {
 #ifdef AMREX_USE_EB
-      amrex::Abort("Embedded boundaries with RZ geometry is not currently suppported.");
+      amrex::Abort("Embedded boundaries with RZ geometry is not currently supported.");
 #endif
         for ( int n = 0; n < AMREX_SPACEDIM; n++ ) {
             if ( visc_coef[n] > 0 ) {
@@ -601,10 +601,10 @@ NavierStokesBase::read_geometry ()
     int coord;
     pp.get("coord_sys",coord);
 
-    if ((Geometry::CoordType) coord == Geometry::RZ && phys_bc.lo(0) != Symmetry)
+    if ((Geometry::CoordType) coord == Geometry::RZ && phys_bc.lo(0) != PhysBCType::symmetry)
     {
-        phys_bc.setLo(0,Symmetry);
-        amrex::Print() << "\nWarning: Setting phys_bc at xlo to Symmetry\n\n";
+        phys_bc.setLo(0,PhysBCType::symmetry);
+        amrex::Print() << "\nWarning: Setting phys_bc at xlo to PhysBCType::symmetry\n\n";
     }
 #endif
 }
@@ -623,7 +623,7 @@ NavierStokesBase::advance_setup (Real /*time*/,
     umac_n_grow = 1;
 
 #ifdef AMREX_PARTICLES
-    if (ncycle > umac_n_grow) {
+    if (ncycle > umac_n_grow && NSPC) {
         umac_n_grow = ncycle;
     }
 #endif
@@ -1146,7 +1146,7 @@ NavierStokesBase::create_umac_grown (int nGrow,
                                                                                 crse_bndry_func_y,
                                                                                 crse_bndry_func_z)};
 
-        // Use piecewise constant interpolation in time, so create ficticious variable for time
+        // Use piecewise constant interpolation in time, so create fictitious variable for time
         Real fake_time = 0.;
 
         FillPatchTwoLevels(u_mac_fine, IntVect(nGrow), fake_time,
@@ -1330,7 +1330,7 @@ NavierStokesBase::errorEst (TagBoxArray& tb,
     if ( !ebfactory.isAllRegular() )
     {
         if (!refine_cutcells) {
-            amrex::Warning("Partially refined EB is still under development. This is not garanteed to work! Please use ns.refine_cutcells=1 for now.");
+            amrex::Warning("Partially refined EB is still under development. This is not guaranteed to work! Please use ns.refine_cutcells=1 for now.");
         }
 
         // Refine on cut cells
@@ -1638,14 +1638,14 @@ NavierStokesBase::getOutFlowFaces (Vector<Orientation>& outFaces)
     outFaces.resize(0);
     for (int idir = 0; idir < AMREX_SPACEDIM; idir++)
     {
-        if (phys_bc.lo(idir) == Outflow)
+        if (phys_bc.lo(idir) == PhysBCType::outflow)
         {
             auto len = outFaces.size();
             outFaces.resize(len+1);
             outFaces[len] = Orientation(idir,Orientation::low);
         }
 
-        if (phys_bc.hi(idir) == Outflow)
+        if (phys_bc.hi(idir) == PhysBCType::outflow)
         {
             auto len = outFaces.size();
             outFaces.resize(len+1);
@@ -2403,7 +2403,7 @@ NavierStokesBase::post_init_state ()
     NavierStokesBase::initial_step = true;
     //
     // Average velocity and scalar data down from finer levels
-    // so that conserved data is consistant between levels.
+    // so that conserved data is consistent between levels.
     // This might not be the most efficient way of doing things
     // (since initialVelocityProject will average down vel, P and Gradp),
     // but it does ensure everything is averaged down for all cases
@@ -2523,7 +2523,7 @@ NavierStokesBase::post_restart ()
 
 #ifdef AMREX_USE_TURBULENT_FORCING
   //
-  // Initialize data structures used for homogenous isentropic forced turbulence.
+  // Initialize data structures used for homogeneous isentropic forced turbulence.
   // Only need to do it once.
   if (level == 0)
       TurbulentForcing::init_turbulent_forcing(geom.ProbLoArray(),geom.ProbHiArray());
@@ -2950,7 +2950,7 @@ NavierStokesBase::scalar_advection_update (Real dt,
     //     {
     //         amrex::Print() << "SAU: Old scalar " << sigma << " contains Nans" << std::endl;
 
-    //         IntVect mpt(D_DECL(-100,100,-100));
+    //         IntVect mpt(AMREX_D_DECL(-100,100,-100));
     //         for (MFIter mfi(S_old); mfi.isValid(); ++mfi){
     //             if ( S_old[mfi].contains_nan<RunOn::Device>(mpt) )
     //                 amrex::Print() << " Nans at " << mpt << std::endl;
@@ -2960,7 +2960,7 @@ NavierStokesBase::scalar_advection_update (Real dt,
     //     {
     //         amrex::Print() << "SAU: New scalar " << sigma << " contains Nans" << std::endl;
 
-    //         IntVect mpt(D_DECL(-100,100,-100));
+    //         IntVect mpt(AMREX_D_DECL(-100,100,-100));
     //         for (MFIter mfi(S_new); mfi.isValid(); ++mfi){
     //             if ( S_new[mfi].contains_nan<RunOn::Device>(mpt) )
     //                 amrex::Print() << " Nans at " << mpt << std::endl;
@@ -3038,8 +3038,8 @@ set_bcrec_new (Vector<BCRec>  &bcrec,
       for (int dir = 0; dir < AMREX_SPACEDIM; dir++)
       {
          int bc_index = (src_comp+n)*(2*AMREX_SPACEDIM) + dir;
-         bcrec[n].setLo(dir,INT_DIR);
-         bcrec[n].setHi(dir,INT_DIR);
+         bcrec[n].setLo(dir,BCType::int_dir);
+         bcrec[n].setHi(dir,BCType::int_dir);
          if ( ( box.smallEnd(dir) < domain.smallEnd(dir) ) ||
               ( box.bigEnd(dir)   > domain.bigEnd(dir) ) ) {
             for (int crse = 0; crse < cgrids.size(); crse++) {
@@ -3063,7 +3063,7 @@ set_bcrec_new (Vector<BCRec>  &bcrec,
 // This routine interpolates the num_comp components of CrseSync
 // (starting at src_comp) and either increments or puts the result into
 // the num_comp components of FineSync (starting at dest_comp)
-// The components of bc_orig_qty corespond to the quantities of CrseSync.
+// The components of bc_orig_qty correspond to the quantities of CrseSync.
 //
 void
 NavierStokesBase::SyncInterp (MultiFab&      CrseSync,
@@ -3564,7 +3564,7 @@ NavierStokesBase::velocity_advection_update (Real dt)
         //
         // Average the new and old time to get Crank-Nicholson half time approximation.
         // Scalars always get updated before velocity (see NavierStokes::advance), so
-        // this is garanteed to be good.
+        // this is guaranteed to be good.
         //
         auto const& scal = ScalFAB.array();
         auto const& scal_o = U_old.array(mfi,Density);
@@ -3631,7 +3631,7 @@ NavierStokesBase::velocity_advection_update (Real dt)
        {
          amrex::Print() << "VAU: Old velocity " << sigma << " contains Nans" << std::endl;
 
-         IntVect mpt(D_DECL(-100,100,-100));
+         IntVect mpt(AMREX_D_DECL(-100,100,-100));
          for (MFIter mfi(U_old); mfi.isValid(); ++mfi){
            const Box& bx = mfi.tilebox();
            if ( U_old[mfi].contains_nan<RunOn::Device>(bx, sigma, 1, mpt) )
@@ -3642,7 +3642,7 @@ NavierStokesBase::velocity_advection_update (Real dt)
        {
          amrex::Print() << "VAU: New velocity " << sigma << " contains Nans" << std::endl;
 
-         IntVect mpt(D_DECL(-100,100,-100));
+         IntVect mpt(AMREX_D_DECL(-100,100,-100));
          for (MFIter mfi(U_new); mfi.isValid(); ++mfi){
            const Box& bx = mfi.tilebox();
            if ( U_new[mfi].contains_nan<RunOn::Device>(bx, sigma, 1, mpt) )
@@ -3811,6 +3811,8 @@ NavierStokesBase::read_particle_params ()
 void
 NavierStokesBase::initParticleData ()
 {
+    if (!do_nspc) { return; }
+
     if (level == 0)
     {
         if (NSPC == 0)
@@ -3996,7 +3998,7 @@ NavierStokesBase::ParticleDerive (const std::string& name,
             //
             ParticleDerive("particle_count",time,mf,dcomp);
 
-            IntVect trr(D_DECL(1,1,1));
+            IntVect trr(AMREX_D_DECL(1,1,1));
 
             for (int lev = level+1; lev <= parent->finestLevel(); lev++)
             {
@@ -4490,7 +4492,7 @@ NavierStokesBase::predict_velocity (Real  dt)
    }
    else
    {
-       Abort("NSB::predict_velocity: Unkown advection_scheme");
+       Abort("NSB::predict_velocity: Unknown advection_scheme");
    }
 
    if (verbose > 1)
@@ -4726,7 +4728,7 @@ NavierStokesBase::ComputeAofs ( MultiFab& advc, int a_comp, // Advection term "A
         FArrayBox tmp;
         if (is_sync)
         {
-            // For the sync, we need a temorary FAB to hold the update because
+            // For the sync, we need a temporary FAB to hold the update because
             // we add the update to what's already in advc.
             tmp.resize(bx, ncomp, The_Async_Arena());
             update_fab = &tmp;

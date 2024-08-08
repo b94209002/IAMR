@@ -253,7 +253,7 @@ Diffusion::diffuse_scalar (const Vector<MultiFab*>&  S_old,
 
     // Velocity components should go to tensor solver
     if (S_comp <= Xvel && Xvel <= S_comp+nComp-1){
-       amrex::Abort("Diffusion::diffuse_scalar(): velocity component(s) attemping to use scalar solver. Velocity must use tensor solver.\n");
+       amrex::Abort("Diffusion::diffuse_scalar(): velocity component(s) attempting to use scalar solver. Velocity must use tensor solver.\n");
     }
 
     // Check if scalars are diffusive type:
@@ -827,7 +827,7 @@ Diffusion::diffuse_tensor_velocity (Real                   dt,
        const Box& bx  = mfi.tilebox();
        auto const& rhs      = Rhs.array(mfi);
        auto const& unew     = U_new.array(mfi,Xvel);
-       auto const& rho      = (rho_flag == 1) ? rho_half.array(mfi) : navier_stokes->get_old_data(State_Type).array(mfi,Density);
+       auto const& rho      = (rho_flag == 1) ? rho_half.array(mfi) : navier_stokes->get_new_data(State_Type).array(mfi,Density);
        auto const& deltarhs = (has_delta_rhs) ? delta_rhs->array(mfi,rhsComp) : U_new.array(mfi);
        amrex::ParallelFor(bx, [rhs, unew, rho, deltarhs, has_delta_rhs, dt]
        AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -838,6 +838,9 @@ Diffusion::diffuse_tensor_velocity (Real                   dt,
              if ( has_delta_rhs ) {
                 rhs(i,j,k,n) += deltarhs(i,j,k,n) * dt;
              }
+             // Put unew back since it's a reference to the MF that
+             // ultimately gets used as an initial guess for the solve
+             unew(i,j,k,n) /= rho(i,j,k);
           }
        });
     }
@@ -850,7 +853,7 @@ Diffusion::diffuse_tensor_velocity (Real                   dt,
 
     // MLMG solution
     {
-      // genaric tol suggestion for MLMG
+      // generic tol suggestion for MLMG
       // const Real tol_rel = 1.e-11;
       // const Real tol_abs = 0.0;
       // cribbing from scalar
@@ -1003,14 +1006,14 @@ Diffusion::diffuse_Vsync (MultiFab&              Vsync,
 
         for (int k = 0; k < AMREX_SPACEDIM; k++)
         {
-            if (velbc.hi(k) == EXT_DIR)
+            if (velbc.hi(k) == BCType::ext_dir)
             {
                 IntVect smallend = domain.smallEnd();
                 smallend.setVal(k,domain.bigEnd(k));
                 Box top_strip(smallend,domain.bigEnd(),IntVect::TheCellVector());
                 Vsync.setVal(0,top_strip,n-Xvel,1,1);
             }
-            if (velbc.lo(k) == EXT_DIR)
+            if (velbc.lo(k) == BCType::ext_dir)
             {
                 IntVect bigend = domain.bigEnd();
                 bigend.setVal(k,domain.smallEnd(k));
@@ -1501,15 +1504,15 @@ Diffusion::computeExtensiveFluxes(MLMG& a_mg, MultiFab& Soln,
 #endif
    for (MFIter mfi(Soln, mfi_info); mfi.isValid(); ++mfi)
    {
-      D_TERM( const auto& fx = flxx.array(mfi);,
+      AMREX_D_TERM( const auto& fx = flxx.array(mfi);,
               const auto& fy = flxy.array(mfi);,
               const auto& fz = flxz.array(mfi););
 
-      D_TERM( const Box ubx = mfi.nodaltilebox(0);,
+      AMREX_D_TERM( const Box ubx = mfi.nodaltilebox(0);,
               const Box vbx = mfi.nodaltilebox(1);,
               const Box wbx = mfi.nodaltilebox(2););
 
-      D_TERM( const auto& areax = area[0].array(mfi);,
+      AMREX_D_TERM( const auto& areax = area[0].array(mfi);,
               const auto& areay = area[1].array(mfi);,
               const auto& areaz = area[2].array(mfi););
 
@@ -1525,24 +1528,24 @@ Diffusion::computeExtensiveFluxes(MLMG& a_mg, MultiFab& Soln,
          // For now, set to very large num so we know if you accidentally use it
          // MLMG will set covered fluxes to zero
          //
-         D_TERM(AMREX_PARALLEL_FOR_4D(ubx, ncomp, i, j, k, n, {fx(i,j,k,n) = COVERED_VAL;});,
+         AMREX_D_TERM(AMREX_PARALLEL_FOR_4D(ubx, ncomp, i, j, k, n, {fx(i,j,k,n) = COVERED_VAL;});,
                 AMREX_PARALLEL_FOR_4D(vbx, ncomp, i, j, k, n, {fy(i,j,k,n) = COVERED_VAL;});,
                 AMREX_PARALLEL_FOR_4D(wbx, ncomp, i, j, k, n, {fz(i,j,k,n) = COVERED_VAL;}););
       }
       else if ( flags.getType(amrex::grow(bx,0)) != FabType::regular )
       {
-     D_TERM( const auto& afrac_x = areafrac[0]->array(mfi);,
+     AMREX_D_TERM( const auto& afrac_x = areafrac[0]->array(mfi);,
          const auto& afrac_y = areafrac[1]->array(mfi);,
          const auto& afrac_z = areafrac[2]->array(mfi););
 
-     D_TERM(AMREX_PARALLEL_FOR_4D(ubx, ncomp, i, j, k, n, {fx(i,j,k,n) *= fac*areax(i,j,k)*afrac_x(i,j,k);});,
+     AMREX_D_TERM(AMREX_PARALLEL_FOR_4D(ubx, ncomp, i, j, k, n, {fx(i,j,k,n) *= fac*areax(i,j,k)*afrac_x(i,j,k);});,
         AMREX_PARALLEL_FOR_4D(vbx, ncomp, i, j, k, n, {fy(i,j,k,n) *= fac*areay(i,j,k)*afrac_y(i,j,k);});,
                 AMREX_PARALLEL_FOR_4D(wbx, ncomp, i, j, k, n, {fz(i,j,k,n) *= fac*areaz(i,j,k)*afrac_z(i,j,k);}););
       }
       else
 #endif
       {
-    D_TERM(AMREX_PARALLEL_FOR_4D(ubx, ncomp, i, j, k, n, {fx(i,j,k,n) *= fac*areax(i,j,k);});,
+    AMREX_D_TERM(AMREX_PARALLEL_FOR_4D(ubx, ncomp, i, j, k, n, {fx(i,j,k,n) *= fac*areax(i,j,k);});,
            AMREX_PARALLEL_FOR_4D(vbx, ncomp, i, j, k, n, {fy(i,j,k,n) *= fac*areay(i,j,k);});,
            AMREX_PARALLEL_FOR_4D(wbx, ncomp, i, j, k, n, {fz(i,j,k,n) *= fac*areaz(i,j,k);}););
       }
@@ -1563,7 +1566,7 @@ Diffusion::getViscTerms (MultiFab&              visc_terms,
     //
     // Before computing the godunov predictors we may have to
     // precompute the viscous source terms.  To do this we must
-    // construct a Laplacian operator, set the coeficients and apply
+    // construct a Laplacian operator, set the coefficients and apply
     // it to the time N data.  First, however, we must precompute the
     // fine N bndry values.  We will do this for each scalar that diffuses.
     //
@@ -1680,9 +1683,9 @@ Diffusion::getTensorViscTerms (MultiFab&              visc_terms,
     if (ncomp < AMREX_SPACEDIM)
         amrex::Abort("Diffusion::getTensorViscTerms(): visc_terms needs at least AMREX_SPACEDIM components");
     //
-    // Before computing the godunov predicitors we may have to
+    // Before computing the godunov predictors we may have to
     // precompute the viscous source terms.  To do this we must
-    // construct a Laplacian operator, set the coeficients and apply
+    // construct a Laplacian operator, set the coefficients and apply
     // it to the time N data.  First, however, we must precompute the
     // fine N bndry values.  We will do this for each scalar that diffuses.
     //
@@ -1911,17 +1914,17 @@ Diffusion::setDomainBC (std::array<LinOpBCType,AMREX_SPACEDIM>& mlmg_lobc,
         else
         {
             int pbc = bc.lo(idim);
-            if (pbc == EXT_DIR)
+            if (pbc == BCType::ext_dir)
             {
                 mlmg_lobc[idim] = LinOpBCType::Dirichlet;
             }
-            else if (pbc == FOEXTRAP      ||
-                     pbc == HOEXTRAP      ||
-                     pbc == REFLECT_EVEN)
+            else if (pbc == BCType::foextrap      ||
+                     pbc == BCType::hoextrap      ||
+                     pbc == BCType::reflect_even)
             {
                 mlmg_lobc[idim] = LinOpBCType::Neumann;
             }
-            else if (pbc == REFLECT_ODD)
+            else if (pbc == BCType::reflect_odd)
             {
                 mlmg_lobc[idim] = LinOpBCType::reflect_odd;
             }
@@ -1931,17 +1934,17 @@ Diffusion::setDomainBC (std::array<LinOpBCType,AMREX_SPACEDIM>& mlmg_lobc,
             }
 
             pbc = bc.hi(idim);
-            if (pbc == EXT_DIR)
+            if (pbc == BCType::ext_dir)
             {
                 mlmg_hibc[idim] = LinOpBCType::Dirichlet;
             }
-            else if (pbc == FOEXTRAP      ||
-                     pbc == HOEXTRAP      ||
-                     pbc == REFLECT_EVEN)
+            else if (pbc == BCType::foextrap      ||
+                     pbc == BCType::hoextrap      ||
+                     pbc == BCType::reflect_even)
             {
                 mlmg_hibc[idim] = LinOpBCType::Neumann;
             }
-            else if (pbc == REFLECT_ODD)
+            else if (pbc == BCType::reflect_odd)
             {
                 mlmg_hibc[idim] = LinOpBCType::reflect_odd;
             }
@@ -1969,17 +1972,17 @@ Diffusion::setDomainBC (std::array<LinOpBCType,AMREX_SPACEDIM>& mlmg_lobc,
         else
         {
             int pbc = bc.lo(idim);
-            if (pbc == EXT_DIR)
+            if (pbc == BCType::ext_dir)
             {
                 mlmg_lobc[idim] = LinOpBCType::Dirichlet;
             }
-            else if (pbc == FOEXTRAP      ||
-                     pbc == HOEXTRAP      ||
-                     pbc == REFLECT_EVEN)
+            else if (pbc == BCType::foextrap      ||
+                     pbc == BCType::hoextrap      ||
+                     pbc == BCType::reflect_even)
             {
                 mlmg_lobc[idim] = LinOpBCType::Neumann;
             }
-            else if (pbc == REFLECT_ODD)
+            else if (pbc == BCType::reflect_odd)
             {
                 mlmg_lobc[idim] = LinOpBCType::reflect_odd;
             }
@@ -1989,17 +1992,17 @@ Diffusion::setDomainBC (std::array<LinOpBCType,AMREX_SPACEDIM>& mlmg_lobc,
             }
 
             pbc = bc.hi(idim);
-            if (pbc == EXT_DIR)
+            if (pbc == BCType::ext_dir)
             {
                 mlmg_hibc[idim] = LinOpBCType::Dirichlet;
             }
-            else if (pbc == FOEXTRAP      ||
-                     pbc == HOEXTRAP      ||
-                     pbc == REFLECT_EVEN)
+            else if (pbc == BCType::foextrap      ||
+                     pbc == BCType::hoextrap      ||
+                     pbc == BCType::reflect_even)
             {
                 mlmg_hibc[idim] = LinOpBCType::Neumann;
             }
-            else if (pbc == REFLECT_ODD)
+            else if (pbc == BCType::reflect_odd)
             {
                 mlmg_hibc[idim] = LinOpBCType::reflect_odd;
             }
