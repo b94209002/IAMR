@@ -143,16 +143,20 @@ NavierStokesBase::getForce (FArrayBox&       force,
        const Real* dx = geom.CellSize();
        NavierStokes::RayleighBenard rb = NavierStokes::getRayleighBenard();
 
+#if ( AMREX_SPACEDIM == 2 )
        amrex::ParallelFor(bx, [frc, aux, vel, rb, dom_lo, dx]
        AMREX_GPU_DEVICE(int i, int j, int k) noexcept
        {
-#if ( AMREX_SPACEDIM == 2 )
          frc(i,j,k,0) = 0.0;
          Real y = dom_lo[1] + (j + 0.5_rt) * dx[1];
          Real m = aux(i,j,k,2) + rb.M0 + rb.dMz*y;
          Real d = aux(i,j,k,1) + rb.D0 + rb.dDz*y;
          frc(i,j,k,1) = std::max(m, d - rb.N2*y);
+       });
 #elif ( AMREX_SPACEDIM == 3 )
+       amrex::ParallelFor(bx, [frc, aux, vel, rb, dom_lo, dx]
+       AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+       {
          Real y = dom_lo[1] + (j + 0.5_rt) * dx[1];
          Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
          Real m = aux(i,j,k,2) + rb.M0 + rb.dMz*z + rb.dMy*y;
@@ -163,10 +167,10 @@ NavierStokesBase::getForce (FArrayBox&       force,
          frc(i,j,k,0) = aux(i,j,k,0) * rb.omega * vel(i,j,k,1);
          frc(i,j,k,1) = -aux(i,j,k,0) * rb.omega * vel(i,j,k,0);
          frc(i,j,k,2) = std::max(m, d - rb.N2*z);
+        });
 #endif
          // define dD = (DH-D0)/H and dM = (MH-M0)/H
          // with this from, DBC = 0 in the buoyancy equation
-       });
        // force.setVal<RunOn::Gpu>(0.0, bx, Xvel, AMREX_SPACEDIM);
      }
    }
