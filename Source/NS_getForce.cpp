@@ -385,7 +385,6 @@ NavierStokesBase::getForce (FArrayBox&       force,
      if ( scomp == AMREX_SPACEDIM+2 && ncomp == 1 ) {
          auto const& frc = force.array();
          auto const& vel = State.array(auxScomp);
-         auto const& aux = Aux.array(auxScomp);
          amrex::ParallelFor(bx, [frc, vel, rb, dx, H, dom_lo, Pi]
          AMREX_GPU_DEVICE(int i, int j, int k) noexcept
          {
