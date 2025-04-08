@@ -144,7 +144,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
        NavierStokes::RayleighBenard rb = NavierStokes::getRayleighBenard();
 
 #if ( AMREX_SPACEDIM == 2 )
-       amrex::ParallelFor(bx, [frc, rb, dom_lo, dx]
+       amrex::ParallelFor(bx, [frc, aux, rb, dom_lo, dx]
        AMREX_GPU_DEVICE(int i, int j, int k) noexcept
        {
          frc(i,j,k,0) = 0.0;
