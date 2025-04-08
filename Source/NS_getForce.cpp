@@ -386,7 +386,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
          auto const& frc = force.array();
          auto const& vel = State.array(auxScomp);
          auto const& aux = Aux.array(auxScomp);
-         amrex::ParallelFor(bx, [frc, vel, aux, rb, dx, H, dom_lo, Pi]
+         amrex::ParallelFor(bx, [frc, vel, rb, dx, H, dom_lo, Pi]
          AMREX_GPU_DEVICE(int i, int j, int k) noexcept
          {
              Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
