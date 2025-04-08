@@ -138,7 +138,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
        });
      }
      else {
-       
+
        const Real* dom_lo = geom.ProbLo();
        const Real* dx = geom.CellSize();
        NavierStokes::RayleighBenard rb = NavierStokes::getRayleighBenard();
@@ -166,7 +166,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
 #endif
          // define dD = (DH-D0)/H and dM = (MH-M0)/H
          // with this from, DBC = 0 in the buoyancy equation
-       }); 
+       });
        // force.setVal<RunOn::Gpu>(0.0, bx, Xvel, AMREX_SPACEDIM);
      }
    }
@@ -192,7 +192,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
    if (ncomp_scal > 0) {
       force.setVal<RunOn::Gpu>(0.0, bx, scomp_scal, ncomp_scal);
    }*/
-   
+
    if ( scomp >= AMREX_SPACEDIM || scomp+ncomp >= AMREX_SPACEDIM) {
      //force.setVal<RunOn::Gpu>(0.0, bx, scomp, ncomp);
      // Doing only scalars
@@ -316,7 +316,7 @@ NavierStokesBase::getForce (FArrayBox&       force,
      if ( scomp == AMREX_SPACEDIM && ncomp == 3 ) {
          auto const& frc = force.array();
          auto const& vel = State.array(auxScomp);
-         auto const& aux = Aux.array(auxScomp);    
+         auto const& aux = Aux.array(auxScomp);
          amrex::ParallelFor(bx, [frc, vel, aux, rb, dx, H, dom_lo, Pi]
          AMREX_GPU_DEVICE(int i, int j, int k) noexcept
          {
@@ -386,12 +386,12 @@ NavierStokesBase::getForce (FArrayBox&       force,
          auto const& frc = force.array();
          auto const& vel = State.array(auxScomp);
          auto const& aux = Aux.array(auxScomp);
-	 amrex::ParallelFor(bx, [frc, vel, aux, rb, dx, H, dom_lo, Pi]
+         amrex::ParallelFor(bx, [frc, vel, aux, rb, dx, H, dom_lo, Pi]
          AMREX_GPU_DEVICE(int i, int j, int k) noexcept
          {
              Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
              // frc(i,j,k,0) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H);
-	     // Real Ud_xM = - 0.5_rt * rb.U0 * z * (aux(i+1,j,k,2) - aux(i-1,j,k,2))/dx[0];
+             // Real Ud_xM = - 0.5_rt * rb.U0 * z * (aux(i+1,j,k,2) - aux(i-1,j,k,2))/dx[0];
              Real m = rb.D0 + rb.dDz * z + aux(i,j,k,1);
              Real d = rb.M0 + rb.dMz * z + aux(i,j,k,2);
              Real ql = rb.prep * std::max(0., m - d + rb.N2*z);
