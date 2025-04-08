@@ -120,7 +120,9 @@ NavierStokesBase::getForce (FArrayBox&       force,
      // TODO: add some switch for user-supplied/problem-dependent forcing
      //
      auto const& frc = force.array(scomp);
+#if ( AMREX_SPACEDIM == 3 )
      auto const& vel = State.array(auxScomp);
+#endif
      auto const& aux = Aux.array(auxScomp);
      const Real grav = gravity;
 
