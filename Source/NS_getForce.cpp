@@ -174,8 +174,8 @@ NavierStokesBase::getForce (FArrayBox&       force,
    //
    // Scalar forcing
    //
-   int scomp_scal = -1;
-   int ncomp_scal = -1;
+   // int scomp_scal = -1;
+   // int ncomp_scal = -1;
    /*if ( scomp >= AMREX_SPACEDIM ) {
        // Doing only scalars
        scomp_scal = 0;
@@ -394,7 +394,6 @@ NavierStokesBase::getForce (FArrayBox&       force,
              // Real Ud_xM = - 0.5_rt * rb.U0 * z * (aux(i+1,j,k,2) - aux(i-1,j,k,2))/dx[0];
              Real m = rb.D0 + rb.dDz * z + aux(i,j,k,1);
              Real d = rb.M0 + rb.dMz * z + aux(i,j,k,2);
-             Real ql = rb.prep * std::max(0., m - d + rb.N2*z);
              frc(i,j,k,0) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H); // - Ud_xM;
          });
      }
