@@ -392,8 +392,8 @@ NavierStokesBase::getForce (FArrayBox&       force,
              Real z = dom_lo[2] + (k + 0.5_rt) * dx[2];
              // frc(i,j,k,0) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H);
              // Real Ud_xM = - 0.5_rt * rb.U0 * z * (aux(i+1,j,k,2) - aux(i-1,j,k,2))/dx[0];
-             Real m = rb.D0 + rb.dDz * z + aux(i,j,k,1);
-             Real d = rb.M0 + rb.dMz * z + aux(i,j,k,2);
+             //Real m = rb.D0 + rb.dDz * z + aux(i,j,k,1);
+             //Real d = rb.M0 + rb.dMz * z + aux(i,j,k,2);
              frc(i,j,k,0) = -vel(i,j,k,1)*rb.dMy - vel(i,j,k,2)*rb.dMz - 0.5 * rb.qrad * sin(Pi*z/H); // - Ud_xM;
          });
      }
