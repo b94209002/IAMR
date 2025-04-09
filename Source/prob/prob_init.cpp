@@ -780,7 +780,8 @@ void NavierStokes::init_RayleighBenard (Box const& vbx,
   amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
   {
     Real z = problo[2] + (k - domlo.z + 0.5)*dx[2];
-    RandomEngine rand_eng{&engine};
+
+    amrex::RandomEngine rand_eng = amrex::RandomEngine();
     scal(i,j,k,0) = 1.0;
     Real pert = IC.pertamp * amrex::Random(rand_eng);
     scal(i,j,k,1) = pert*exp(-z/dx[2]);
