@@ -10,7 +10,7 @@ TOP = ../..
 #
 
 DIM        = 3
-COMP	   = gnu
+COMP	   = gcc
 DEBUG	   = FALSE
 USE_MPI    = TRUE
 USE_OMP    = FALSE
