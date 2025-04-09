@@ -309,7 +309,7 @@ NavierStokes::Initialize_diffusivities ()
         pp.get("temp_cond_coef",visc_coef[++scalId]);
     }
     // read prob data
-    prob_initData_restart();
+    // prob_initData_restart();
 }
 
 void
